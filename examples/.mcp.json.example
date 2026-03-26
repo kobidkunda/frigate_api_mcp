@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "factory-analytics": {
+      "url": "http://127.0.0.1:8099/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TOKEN}"
+      }
+    }
+  }
+}

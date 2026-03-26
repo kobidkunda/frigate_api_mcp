@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Analytics</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Factory Analytics</h1>
+      <p>Frigate + Ollama + SQLite + HTTP MCP bridge</p>
+    </div>
+    <div class="actions">
+      <button onclick="syncCameras()">Sync Cameras</button>
+      <button onclick="refreshAll()">Refresh</button>
+    </div>
+  </header>
+  <main class="grid">
+    <section class="card span-2">
+      <h2>System Health</h2>
+      <div id="healthCards" class="cards"></div>
+    </section>
+    <section class="card">
+      <h2>Settings</h2>
+      <form id="settingsForm" class="stack">
+        <label>Frigate URL <input name="frigate_url" /></label>
+        <label>Frigate Auth Mode <select name="frigate_auth_mode"><option value="none">none</option><option value="basic">basic</option><option value="bearer">bearer</option></select></label>
+        <label>Frigate Username <input name="frigate_username" /></label>
+        <label>Frigate Password <input name="frigate_password" type="password" /></label>
+        <label>Frigate Bearer Token <input name="frigate_bearer_token" type="password" /></label>
+        <label>Verify TLS <select name="frigate_verify_tls"><option value="false">false</option><option value="true">true</option></select></label>
+        <label>Ollama URL <input name="ollama_url" /></label>
+        <label>Vision Model <input name="ollama_vision_model" /></label>
+        <label>Timeout (sec) <input name="ollama_timeout_sec" type="number" min="10" /></label>
+        <label>Analysis Interval (sec) <input name="analysis_interval_seconds" type="number" min="30" /></label>
+        <label>Timezone <input name="timezone" /></label>
+        <label>Scheduler Enabled <select name="scheduler_enabled"><option value="true">true</option><option value="false">false</option></select></label>
+        <button type="submit">Save Settings</button>
+      </form>
+    </section>
+    <section class="card span-2"><h2>Cameras</h2><div id="cameraTable"></div></section>
+    <section class="card"><h2>Daily Chart</h2><canvas id="chartCanvas" width="600" height="240"></canvas></section>
+    <section class="card"><h2>Daily Report</h2><div id="reportView" class="report"></div></section>
+    <section class="card span-2"><h2>Jobs</h2><div id="jobsTable"></div></section>
+    <section class="card span-2"><h2>Segments / Review Queue</h2><div id="segmentsTable"></div></section>
+    <section class="card span-2"><h2>Logs</h2><div class="inline-actions"><button onclick="loadLog('api')">API</button><button onclick="loadLog('worker')">Worker</button><button onclick="loadLog('mcp')">MCP</button></div><pre id="logView"></pre></section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
