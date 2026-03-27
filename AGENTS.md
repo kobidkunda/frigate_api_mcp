@@ -15,8 +15,12 @@ For every meaningful code or config change:
 3. update `docs/todos.md`
 4. update `docs/features.md` when a feature is created, changed, released, or removed
 5. Dtabase sqlite data/db/factory_analytics.db
-6. read env always .env
+6. read env always .env & .env.example
+7. Main application files here factory_analytics*
+8. application starts via factory-analytics.sh cmd 
+9. Logs here logs*
 No task is considered complete until both the real project files and the docs memory are updated.
+
 
 ---
 

@@ -40,7 +40,7 @@ start_api() {
     echo "API already running"
     return
   fi
-  nohup bash -lc "cd '${BASE_DIR}' && ./.venv/bin/uvicorn factory_analytics.main:app --host '${APP_HOST}' --port '${APP_PORT}' --log-level '$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')'" >> "${LOG_DIR}/api.log" 2>&1 &
+  nohup bash -lc "cd '${BASE_DIR}' && exec ./.venv/bin/uvicorn factory_analytics.main:app --host '${APP_HOST}' --port '${APP_PORT}' --log-level '$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')'" >> "${LOG_DIR}/api.log" 2>&1 &
   echo $! > "$API_PID_FILE"
   echo "Started API on ${APP_HOST}:${APP_PORT}"
 }
@@ -50,7 +50,7 @@ start_mcp() {
     echo "MCP already running"
     return
   fi
-  nohup bash -lc "cd '${BASE_DIR}' && ./.venv/bin/uvicorn factory_analytics.mcp_server:app --host '${MCP_HOST}' --port '${MCP_PORT}' --log-level '$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')'" >> "${LOG_DIR}/mcp.log" 2>&1 &
+  nohup bash -lc "cd '${BASE_DIR}' && exec ./.venv/bin/uvicorn factory_analytics.mcp_server:app --host '${MCP_HOST}' --port '${MCP_PORT}' --log-level '$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')'" >> "${LOG_DIR}/mcp.log" 2>&1 &
   echo $! > "$MCP_PID_FILE"
   echo "Started MCP on ${MCP_HOST}:${MCP_PORT}"
 }
@@ -86,7 +86,19 @@ status_one() {
   if is_running "$pid_file"; then
     echo "${name}: RUNNING (pid $(cat "$pid_file"))"
   else
-    echo "${name}: STOPPED"
+    # Fallback: detect by listening port when pid file is missing
+    local detected_pid=""
+    case "$name" in
+      API)
+        detected_pid="$(find_listener_pid "$APP_PORT" || true)" ;;
+      MCP)
+        detected_pid="$(find_listener_pid "$MCP_PORT" || true)" ;;
+    esac
+    if [ -n "${detected_pid}" ]; then
+      echo "${name}: RUNNING (pid ${detected_pid}) [port scan]"
+    else
+      echo "${name}: STOPPED"
+    fi
   fi
 }
 
@@ -117,18 +129,70 @@ start_debug_all() {
   echo "MCP: ${MCP_HOST}:${MCP_PORT}"
   echo "Press Ctrl+C to stop"
   echo "---"
-  
+
   cd "${BASE_DIR}"
-  
-  ./.venv/bin/uvicorn factory_analytics.main:app --host "${APP_HOST}" --port "${APP_PORT}" --reload --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')" >> "${LOG_DIR}/api.log" 2>&1 &
+
+  ./.venv/bin/uvicorn factory_analytics.main:app \
+    --host "${APP_HOST}" --port "${APP_PORT}" --reload \
+    --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')" >> "${LOG_DIR}/api.log" 2>&1 &
   API_PID=$!
-  
-  ./.venv/bin/uvicorn factory_analytics.mcp_server:app --host "${MCP_HOST}" --port "${MCP_PORT}" --reload --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')" >> "${LOG_DIR}/mcp.log" 2>&1 &
+  echo "$API_PID" > "$API_PID_FILE"
+
+  ./.venv/bin/uvicorn factory_analytics.mcp_server:app \
+    --host "${MCP_HOST}" --port "${MCP_PORT}" --reload \
+    --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')" >> "${LOG_DIR}/mcp.log" 2>&1 &
   MCP_PID=$!
-  
-  trap "echo 'Stopping...'; kill $API_PID $MCP_PID 2>/dev/null; exit 0" INT TERM
-  
-  wait $API_PID $MCP_PID
+  echo "$MCP_PID" > "$MCP_PID_FILE"
+
+  echo "Tailing logs; press Ctrl+C to detach (services keep running)"
+  logs_follow || true
+  echo "Detached from logs. Services are still running in background. Use './factory-analytics.sh stop' to stop them."
+}
+
+# Fallbacks when pid files are missing (e.g., from debug sessions or manual starts)
+find_listener_pid() {
+  # $1: port
+  local port="$1"
+  command -v lsof >/dev/null 2>&1 || return 1
+  lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -n1 || true
+}
+
+stop_api() {
+  if is_running "$API_PID_FILE"; then
+    stop_one "$API_PID_FILE" "API"
+    return
+  fi
+  local pid
+  pid="$(find_listener_pid "$APP_PORT" || true)"
+  if [ -n "${pid:-}" ]; then
+    kill "$pid" >/dev/null 2>&1 || true
+    for _ in {1..20}; do
+      if kill -0 "$pid" >/dev/null 2>&1; then sleep 0.5; else break; fi
+    done
+    [ -f "$API_PID_FILE" ] && rm -f "$API_PID_FILE"
+    echo "Stopped API"
+  else
+    echo "API not running"
+  fi
+}
+
+stop_mcp() {
+  if is_running "$MCP_PID_FILE"; then
+    stop_one "$MCP_PID_FILE" "MCP"
+    return
+  fi
+  local pid
+  pid="$(find_listener_pid "$MCP_PORT" || true)"
+  if [ -n "${pid:-}" ]; then
+    kill "$pid" >/dev/null 2>&1 || true
+    for _ in {1..20}; do
+      if kill -0 "$pid" >/dev/null 2>&1; then sleep 0.5; else break; fi
+    done
+    [ -f "$MCP_PID_FILE" ] && rm -f "$MCP_PID_FILE"
+    echo "Stopped MCP"
+  else
+    echo "MCP not running"
+  fi
 }
 
 main() {
@@ -139,12 +203,12 @@ main() {
       start_mcp
       ;;
     stop)
-      stop_one "$MCP_PID_FILE" "MCP"
-      stop_one "$API_PID_FILE" "API"
+      stop_mcp
+      stop_api
       ;;
     restart)
-      stop_one "$MCP_PID_FILE" "MCP" || true
-      stop_one "$API_PID_FILE" "API" || true
+      stop_mcp || true
+      stop_api || true
       start_api
       start_mcp
       ;;

@@ -1,22 +1,7 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Factory Analytics - Logs</title>
-  <link rel="stylesheet" href="/static/styles.css" />
-</head>
-<body>
-  <nav class="nav-bar">
-    <div class="nav-brand">Factory Analytics</div>
-    <div class="nav-links">
-      <a href="/dashboard">Dashboard</a>
-      <a href="/settings">Settings</a>
-      <a href="/history">History</a>
-      <a href="/logs" class="nav-active">Logs</a>
-    </div>
-  </nav>
-  <main>
+{% extends "partials/base.html" %}
+{% block title %}Logs{% endblock %}
+{% block content %}
+  <main id="main" role="main">
     <section class="card span-2">
       <div class="inline-actions">
         <button onclick="loadLog('api')">API Logs</button>
@@ -25,17 +10,27 @@
         <button onclick="refreshLog()">Refresh</button>
         <label><input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" /> Auto-refresh</label>
       </div>
-      <pre id="logView" class="log-output"></pre>
+      <div id="logs-region" role="region" aria-live="polite" aria-busy="false">
+        <pre id="logView" class="log-output"></pre>
+        <div class="state state-error" id="logs-error" role="alert" hidden>Failed to load logs</div>
+        <div class="state state-loading" id="logs-loading" aria-hidden="true" hidden>Loading…</div>
+      </div>
     </section>
   </main>
-  <script src="/static/app.js"></script>
   <script>
     let currentLog = 'api';
     let autoRefreshInterval = null;
     async function loadLog(name) {
       currentLog = name;
-      const data = await fetch('/api/logs/tail?name=' + name + '&lines=100').then(r => r.json());
-      document.getElementById('logView').textContent = data.content || '';
+      const region = document.getElementById('logs-region');
+      const loading = document.getElementById('logs-loading');
+      const err = document.getElementById('logs-error');
+      region.setAttribute('aria-busy','true'); loading.hidden = false; err.hidden = true;
+      try {
+        const data = await fetch('/api/logs/tail?name=' + name + '&lines=100').then(r => r.json());
+        document.getElementById('logView').textContent = data.content || '';
+      } catch(e){ err.hidden = false; }
+      region.setAttribute('aria-busy','false'); loading.hidden = true;
       document.getElementById('logView').scrollTop = document.getElementById('logView').scrollHeight;
     }
     function refreshLog() { loadLog(currentLog); }
@@ -49,5 +44,4 @@
     }
     document.addEventListener('DOMContentLoaded', () => loadLog('api'));
   </script>
-</body>
-</html>
+{% endblock %}

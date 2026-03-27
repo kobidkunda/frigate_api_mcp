@@ -30,10 +30,13 @@ DEFAULT_SETTINGS = {
     "ollama_vision_model": OLLAMA_VISION_MODEL,
     "ollama_timeout_sec": 120,
     "ollama_keep_alive": "5m",
+    "ollama_enabled": True,
+    "ollama_fallback_to_vision": True,
     "analysis_interval_seconds": ANALYSIS_INTERVAL_SECONDS,
     "scheduler_enabled": SCHEDULER_ENABLED,
     "public_base_url": PUBLIC_BASE_URL,
     "host_bind": "0.0.0.0",
+    "frigate_snapshot_timeout_sec": 30,
 }
 
 

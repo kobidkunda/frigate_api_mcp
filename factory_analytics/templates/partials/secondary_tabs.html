@@ -1,0 +1,9 @@
+<div class="secondary-tabs" role="tablist" aria-label="Section tabs">
+  {% for tab in tabs %}
+    <a role="tab"
+       tabindex="{% if tab.active %}0{% else %}-1{% endif %}"
+       aria-selected="{{ 'true' if tab.active else 'false' }}"
+       class="secondary-tab{% if tab.active %} is-active{% endif %}"
+       href="{{ tab.href }}">{{ tab.label }}</a>
+  {% endfor %}
+</div>

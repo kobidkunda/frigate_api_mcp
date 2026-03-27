@@ -1,7 +1,7 @@
 # TODOs
 
 ## In Progress
-- [ ] Camera management: add/edit/test/save/delete, and robust Frigate snapshot
+- [ ] Camera management: add/edit/test/save/delete; robust Frigate snapshot; stabilize Ollama timeouts
   - Owner: agent
   - Started: 2026-03-28
   - Related: docs/plans/2026-03-28-camera-management-design.md, docs/implementation/2026-03-28-camera-management.md
@@ -11,6 +11,11 @@
   - Started: 2026-03-28
   - Related: docs/implementation/2026-03-28-ui-errors-null-elements-and-favicon.md
   - Next step: add smoke tests for each page's init path
+ - [ ] Service script: make stop work for debug sessions
+   - Owner: agent
+   - Started: 2026-03-28
+   - Related: docs/implementation/2026-03-28-factory-analytics-sh-debug-stop-fix.md
+   - Next step: verify on macOS and Linux; extend status fallback
 ## Planned
 - [ ] Add page-level smoke tests for Charts and Reports rendering
   - Related: docs/implementation/2026-03-28-ui-ux-a11y-hardening-and-tests.md
@@ -19,6 +24,9 @@
 ## Blocked
 
 ## Done
+- [x] Fix app.js syntax error breaking global functions
+  - Done: 2026-03-28
+  - Related: docs/implementation/2026-03-28-fix-appjs-syntax.md
 - [x] UI/UX improvements baseline and accessibility
   - Done: 2026-03-28
   - Related: docs/implementation/2026-03-28-ui-ux-a11y-hardening-and-tests.md

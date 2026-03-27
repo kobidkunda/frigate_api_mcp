@@ -11,21 +11,72 @@ async function loadCameras(){ const cameras=await api('/api/cameras'); const el=
     <input id="camera-display-name" placeholder="Display Name (optional)" />
     <input id="camera-interval-new" type="number" min="30" value="300" />
     <label><input id="camera-enabled-new" type="checkbox" checked /> Enabled</label>
+    <label><span>Vision Inference</span>
+      <select id="ollama-enabled-select"><option value="true">Enabled</option><option value="false">Disabled</option></select>
+    </label>
     <button class="secondary" onclick="testNewCamera()">Test</button>
     <button onclick="addCamera()">Add Camera</button>
   </div>
   <div class="small">Use Test to verify connectivity before saving</div>
+  <div id="new-camera-test-status" class="small"></div>
 </div>`;
-  el.innerHTML = addForm + `<table><thead><tr><th>ID</th><th>Name</th><th>Frigate Name</th><th>Enabled</th><th>Interval</th><th>Status</th><th>Actions</th></tr></thead><tbody>${cameras.map(c=>`<tr><td>${c.id}</td><td><input value="${c.name}" id="camera-name-${c.id}" /></td><td>${c.frigate_name}</td><td><input type="checkbox" ${c.enabled ? 'checked' : ''} id="camera-enabled-${c.id}" /></td><td><input type="number" min="30" value="${c.interval_seconds}" id="camera-interval-${c.id}" /></td><td>${c.last_status || ''}<div class="small">${c.last_run_at || ''}</div></td><td class="inline-actions"><button onclick="saveCamera(${c.id})">Save Camera</button><button class="secondary" onclick="runCamera(${c.id})">Test</button><button class="danger" onclick="deleteCamera(${c.id})">Delete</button></td></tr>`).join('')}</tbody></table>`;
+  el.innerHTML = addForm + `<table><thead><tr><th>ID</th><th>Name</th><th>Frigate Name</th><th>Enabled</th><th>Interval</th><th>Status</th><th>Actions</th></tr></thead><tbody>${cameras.map(c=>`<tr><td>${c.id}</td><td><input value="${c.name}" id="camera-name-${c.id}" /></td><td>${c.frigate_name}</td><td><input type="checkbox" ${c.enabled ? 'checked' : ''} id="camera-enabled-${c.id}" /></td><td><input type="number" min="30" value="${c.interval_seconds}" id="camera-interval-${c.id}" /></td><td>${c.last_status || ''}<div class="small">${c.last_run_at || ''}</div><div id="camera-test-status-${c.id}" class="small"></div></td><td class="inline-actions"><button onclick="saveCamera(${c.id})">Save Camera</button><button class="secondary" onclick="testCameraRow(${c.id})">Test</button><button class="danger" onclick="deleteCamera(${c.id})">Delete</button></td></tr>`).join('')}</tbody></table>`;
   try{ const data = await api('/api/frigate/cameras'); const sel=document.getElementById('frigate-camera-select'); sel.innerHTML = `<option value="">Select Frigate Camera</option>` + (data.cameras||[]).map(n=>`<option value="${n}">${n}</option>`).join(''); }catch(_){ const sel=document.getElementById('frigate-camera-select'); if(sel) sel.innerHTML = `<option value="">(Frigate unavailable)</option>`; }
 }
 async function saveCamera(id){ const payload={ name:document.getElementById(`camera-name-${id}`).value, enabled:document.getElementById(`camera-enabled-${id}`).checked, interval_seconds:Number(document.getElementById(`camera-interval-${id}`).value || 300)}; await api(`/api/cameras/${id}`,{method:'PUT',body:JSON.stringify(payload)}); await loadCameras(); }
 async function runCamera(id){ await api(`/api/cameras/${id}/run`,{method:'POST'}); setTimeout(refreshAll,1000); }
-async function addCamera(){ const sel=document.getElementById('frigate-camera-select'); const manual=document.getElementById('frigate-manual').value.trim(); const frigate_name = manual || (sel && sel.value) || ''; if(!frigate_name){ alert('Choose a Frigate camera or enter one manually'); return; } const payload={ frigate_name, name:document.getElementById('camera-display-name').value.trim()||undefined, enabled:document.getElementById('camera-enabled-new').checked, interval_seconds:Number(document.getElementById('camera-interval-new').value||300)}; await api('/api/cameras',{method:'POST',body:JSON.stringify(payload)}); await loadCameras(); }
-async function testNewCamera(){ const sel=document.getElementById('frigate-camera-select'); const manual=document.getElementById('frigate-manual').value.trim(); const frigate_name = manual || (sel && sel.value) || ''; if(!frigate_name){ alert('Choose a Frigate camera or enter one manually'); return; } const res=await api('/api/cameras/test',{method:'POST',body:JSON.stringify({frigate_name})}); if(res.ok){ alert(`Test OK: ${res.label} (${Number(res.confidence||0).toFixed(2)})`);} else { alert(`Test failed: ${res.error||'unknown error'}`);} }
-async function deleteCamera(id){ if(!confirm('Delete this camera? This will remove related jobs and segments.')) return; const res=await api(`/api/cameras/${id}`,{method:'DELETE'}); if(!res.deleted){ alert('Delete did not remove any rows'); } await loadCameras(); }
+async function addCamera(){ const sel=document.getElementById('frigate-camera-select'); const manual=document.getElementById('frigate-manual').value.trim(); const frigate_name = manual || (sel && sel.value) || ''; if(!frigate_name){ alert('Choose a Frigate camera or enter one manually'); return; } const payload={ frigate_name, name:document.getElementById('camera-display-name').value.trim()||undefined, enabled:document.getElementById('camera-enabled-new').checked, interval_seconds:Number(document.getElementById('camera-interval-new').value||300)}; await api('/api/cameras',{method:'POST',body:JSON.stringify(payload)}); // Update ollama enablement setting globally if user changed it
+  const ollamaEnabled = (document.getElementById('ollama-enabled-select')?.value || 'true') === 'true'; await api('/api/settings',{method:'PUT',body:JSON.stringify({values:{ollama_enabled: ollamaEnabled}})}); await loadCameras(); }
+async function testNewCamera(){ const sel=document.getElementById('frigate-camera-select'); const manual=document.getElementById('frigate-manual').value.trim(); const frigate_name = manual || (sel && sel.value) || ''; const statusEl=document.getElementById('new-camera-test-status'); if(!frigate_name){ if(statusEl) statusEl.textContent='Choose a Frigate camera or enter one manually'; return; } try{ if(statusEl){ statusEl.textContent='Testing...'; } const res=await api('/api/cameras/test',{method:'POST',body:JSON.stringify({frigate_name})}); if(statusEl){ statusEl.textContent = res.ok ? `OK: ${res.label} (${Number(res.confidence||0).toFixed(2)})` : `Failed: ${res.error||'unknown error'}`; } } catch(err){ if(statusEl){ statusEl.textContent = `Failed: ${err.message||String(err)}`; } }
+}
+async function testCameraRow(id){ const statusEl=document.getElementById(`camera-test-status-${id}`); try{ if(statusEl){ statusEl.textContent='Testing...'; }
+  // Try probe endpoint first
+  const resp = await fetch('/api/cameras/test',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({camera_id:id}) });
+  if(resp.status === 405 || resp.status === 404){
+    // Fallback: schedule a job as a test and show job status
+    const job = await api(`/api/cameras/${id}/run`,{method:'POST'});
+    if(statusEl){ statusEl.textContent=`Job #${job.id} queued...`; }
+    pollJob(job.id, statusEl);
+    return;
+  }
+  if(!resp.ok){ const text = await resp.text(); throw new Error(text || `HTTP ${resp.status}`); }
+  const res = await resp.json();
+  if(statusEl){ statusEl.textContent = res.ok ? `OK: ${res.label} (${Number(res.confidence||0).toFixed(2)})` : `Failed: ${res.error||'unknown error'}`; }
+} catch(err){ if(statusEl){ statusEl.textContent = `Failed: ${err.message||String(err)}`; } }
+}
+
+async function pollJob(jobId, statusEl, attempts=0){
+  try{
+    const job = await api(`/api/jobs/${jobId}`);
+    if(job.status === 'pending' || job.status === 'running'){
+      if(statusEl){ statusEl.textContent = `Job #${job.id} ${job.status}...`; }
+      if(attempts < 60){ setTimeout(() => pollJob(jobId, statusEl, attempts+1), 1000); }
+      return;
+    }
+    if(job.status === 'success'){
+      if(statusEl){ statusEl.textContent = `Job #${job.id} success`; }
+      // refresh to update last_run/status
+      setTimeout(refreshAll, 500);
+      return;
+    }
+    if(statusEl){ statusEl.textContent = `Job #${job.id} failed: ${job.error || 'unknown'}`; }
+  }catch(err){ if(statusEl){ statusEl.textContent = `Job check failed: ${err.message||String(err)}`; } }
+}
+async function deleteCamera(id){
+  if(!confirm('Delete this camera? This will remove related jobs and segments.')) return;
+  // Try DELETE first
+  let resp = await fetch(`/api/cameras/${id}`,{method:'DELETE'});
+  if(resp.status === 405){
+    // Fallback to POST /delete for environments where DELETE is blocked
+    resp = await fetch(`/api/cameras/${id}/delete`,{method:'POST'});
+  }
+  if(!resp.ok){ const text = await resp.text(); alert(text || `HTTP ${resp.status}`); return; }
+  const res = await resp.json();
+  if(!res.deleted){ alert(res.error ? `Delete failed: ${res.error}` : 'Delete did not remove any rows'); }
+  await loadCameras();
+}
 async function loadJobs(){ const jobs=await api('/api/jobs'); document.getElementById('jobsTable').innerHTML = `<table><thead><tr><th>ID</th><th>Camera</th><th>Status</th><th>Type</th><th>Scheduled</th><th>Finished</th><th>Error</th></tr></thead><tbody>${jobs.map(j=>`<tr><td>${j.id}</td><td>${j.camera_name || j.camera_id}</td><td>${j.status}</td><td>${j.job_type}</td><td>${j.scheduled_for || ''}</td><td>${j.finished_at || ''}</td><td>${j.error || ''}</td></tr>`).join('')}</tbody></table>`; }
-async function loadSegments(){ const segments=await api('/api/history/segments'); document.getElementById('segmentsTable').innerHTML = `<table><thead><tr><th>ID</th><th>Camera</th><th>Label</th><th>Confidence</th><th>Window</th><th>Evidence</th><th>Review</th></tr></thead><tbody>${segments.map(s=>`<tr><td>${s.id}</td><td>${s.camera_name}</td><td>${s.reviewed_label || s.label}</td><td>${Number(s.confidence || 0).toFixed(2)}</td><td>${s.start_ts}<div class="small">${s.end_ts}</div></td><td>${s.evidence_path ? `<a href="/${s.evidence_path}" target="_blank">open</a>` : ''}</td><td><div class="inline-actions"><button class="secondary" onclick="reviewSegment(${s.id}, 'working')">Mark working</button><button class="secondary" onclick="reviewSegment(${s.id}, 'idle')">Mark idle</button><button class="secondary" onclick="reviewSegment(${s.id}, 'sleeping')">Mark sleeping</button></div></td></tr>`).join('')}</tbody></table>`; }
+async function loadSegments(){ const segments=await api('/api/history/segments'); document.getElementById('segmentsTable').innerHTML = `<table><thead><tr><th>ID</th><th>Camera</th><th>Label</th><th>Confidence</th><th>Window</th><th>Evidence</th><th>Review</th></tr></thead><tbody>${segments.map(s=>`<tr><td>${s.id}</td><td>${s.camera_name}</td><td>${s.reviewed_label || s.label}</td><td>${Number(s.confidence || 0).toFixed(2)}</td><td>${s.start_ts}<div class="small">${s.end_ts}</div></td><td>${s.evidence_path ? `<img src="/${s.evidence_path}" alt="evidence" loading="lazy" style="max-width:160px;max-height:120px;border:1px solid #222;border-radius:4px" onerror="this.replaceWith(document.createTextNode('no image'))" />` : ''}</td><td><div class="inline-actions"><button class="secondary" onclick="reviewSegment(${s.id}, 'working')">Mark working</button><button class="secondary" onclick="reviewSegment(${s.id}, 'idle')">Mark idle</button><button class="secondary" onclick="reviewSegment(${s.id}, 'sleeping')">Mark sleeping</button></div></td></tr>`).join('')}</tbody></table>`; }
 async function reviewSegment(id,label){ await api(`/api/review/${id}`,{method:'POST',body:JSON.stringify({reviewed_label:label,review_note:'manual review from GUI'})}); await loadSegments(); }
 async function loadChart(){ const rows=await api('/api/charts/daily?days=7'); const canvas=document.getElementById('chartCanvas'); const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); const pad=40; const width=canvas.width - pad*2; const height=canvas.height - pad*2; const values=rows.flatMap(r=>[r.working_seconds,r.idle_seconds,r.sleeping_seconds]); const max=Math.max(1,...values); ctx.strokeStyle='#7082c3'; ctx.beginPath(); ctx.moveTo(pad,pad); ctx.lineTo(pad,pad+height); ctx.lineTo(pad+width,pad+height); ctx.stroke(); const barWidth=width/Math.max(1,rows.length*4); rows.forEach((row,i)=>{ const baseX=pad+i*barWidth*4+barWidth; const bars=[row.working_seconds,row.idle_seconds,row.sleeping_seconds]; const colors=['#3ad48f','#ffcc66','#ff5d73']; bars.forEach((val,idx)=>{ const h=(val/max)*height; ctx.fillStyle=colors[idx]; ctx.fillRect(baseX+idx*barWidth,pad+height-h,barWidth-2,h);}); ctx.fillStyle='#cbd5ff'; ctx.font='10px sans-serif'; ctx.fillText(row.day.slice(5), baseX, pad+height+12); }); }
 async function loadReport(){ const today=new Date().toISOString().slice(0,10); const report=await api(`/api/reports/daily?day=${today}`); const t=report.totals || {}; document.getElementById('reportView').innerHTML = `<div><strong>Date:</strong> ${report.day}</div><div><strong>Working:</strong> ${fmtSec(t.working_seconds)}</div><div><strong>Idle:</strong> ${fmtSec(t.idle_seconds)}</div><div><strong>Sleeping:</strong> ${fmtSec(t.sleeping_seconds)}</div><div><strong>Uncertain:</strong> ${fmtSec(t.uncertain_seconds)}</div><div><strong>Stopped:</strong> ${fmtSec(t.stopped_seconds)}</div><div class="small">Recent segments: ${(report.recent_segments || []).length}</div>`; }

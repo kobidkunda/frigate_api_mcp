@@ -22,10 +22,13 @@ Add explicit camera add/edit/test/save capabilities. UI form supports Frigate li
 ## Decisions
 - Provide both discovery dropdown and manual override for resilience
 - Non-persistent probe endpoint avoids side effects for quick tests
+- Use the configured Ollama model only; do not silently fall back to another model
+- If Ollama returns non-JSON or invalid labels/confidence, treat the job as failed instead of fabricating an `uncertain` response
 
 ## Verification
 - Manual: add via dropdown; add via manual; run Test (probe) and Test (scheduled)
 - Logs show `camera.create` and `camera.update` audit entries
+- Settings include `frigate_snapshot_timeout_sec` to tune environment; probe adds one retry cycle
 
 ## Risks / Follow-ups
 - Frigate availability affects dropdown; handled with fallback option label

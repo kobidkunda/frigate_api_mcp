@@ -233,6 +233,21 @@ def delete_camera(camera_id: int):
     return result
 
 
+@app.post("/api/cameras/{camera_id}/delete")
+def delete_camera_post(camera_id: int):
+    # Fallback for environments where DELETE is blocked by a proxy
+    result = service.delete_camera(camera_id)
+    return result
+
+
+@app.post("/api/cameras/delete_by_name")
+def delete_camera_by_name(payload: dict):
+    name = (payload or {}).get("frigate_name")
+    if not name:
+        raise HTTPException(status_code=400, detail="frigate_name required")
+    return service.delete_camera_by_name(name)
+
+
 @app.post("/api/jobs/backfill")
 def backfill(payload: BackfillPayload):
     return service.queue_analysis(payload.camera_id, payload.model_dump())

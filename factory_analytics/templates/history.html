@@ -1,22 +1,11 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Factory Analytics - History</title>
-  <link rel="stylesheet" href="/static/styles.css" />
-</head>
-<body>
-  <nav class="nav-bar">
-    <div class="nav-brand">Factory Analytics</div>
-    <div class="nav-links">
-      <a href="/dashboard">Dashboard</a>
-      <a href="/settings">Settings</a>
-      <a href="/history" class="nav-active">History</a>
-      <a href="/logs">Logs</a>
-    </div>
-  </nav>
-  <main>
+{% extends "partials/base.html" %}
+{% block title %}History{% endblock %}
+{% block content %}
+  <main id="main" role="main">
+    {% set tabs = [
+      { 'label': 'History', 'href': '/history', 'active': True },
+    ] %}
+    {% include "partials/secondary_tabs.html" with context %}
     <section class="card span-2">
       <h2>Filters</h2>
       <form id="filterForm" class="inline-form">
@@ -42,10 +31,37 @@
     </section>
     <section class="card span-2">
       <h2>Segments</h2>
-      <div id="segmentsTable"></div>
+      <div id="segmentsTable">
+        <div id="results-region" role="region" aria-live="polite" aria-busy="false">
+          <table class="data-table hide-on-mobile" aria-describedby="results-caption">
+            <caption id="results-caption" class="sr-only">Event results</caption>
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Camera</th>
+                <th scope="col">Label</th>
+                <th scope="col">Confidence</th>
+                <th scope="col">Start</th>
+                <th scope="col">End</th>
+                <th scope="col">Evidence</th>
+                <th scope="col">Review</th>
+              </tr>
+            </thead>
+            <tbody id="results-tbody"><tr><td colspan="8">Loading…</td></tr></tbody>
+          </table>
+          <ul class="data-cards hide-on-desktop" id="results-cards"></ul>
+          <nav class="pagination" aria-label="Pagination">
+            <button type="button" id="page-prev">Prev</button>
+            <span class="page-info" id="page-info">Page 1</span>
+            <button type="button" id="page-next">Next</button>
+          </nav>
+          <div class="state state-empty" id="state-empty" hidden>No segments found</div>
+          <div class="state state-error" id="state-error" role="alert" hidden>Failed to load results</div>
+          <div class="state state-loading" id="state-loading" aria-hidden="true" hidden>Loading…</div>
+        </div>
+      </div>
     </section>
   </main>
-  <script src="/static/app.js"></script>
   <script>
     async function loadFilterOptions() {
       const cameras = await fetch('/api/cameras').then(r => r.json());
@@ -57,15 +73,42 @@
         select.appendChild(opt);
       });
     }
+    let page = 1;
+    const PAGE_SIZE = 20;
+
+    function setBusy(busy){
+      const region = document.getElementById('results-region');
+      region.setAttribute('aria-busy', busy ? 'true' : 'false');
+      document.getElementById('state-loading').hidden = !busy;
+    }
+
+    function setStateEmpty(isEmpty){ document.getElementById('state-empty').hidden = !isEmpty; }
+    function setStateError(isErr){ document.getElementById('state-error').hidden = !isErr; }
+
     async function loadSegments() {
       const params = new URLSearchParams();
       const form = document.getElementById('filterForm');
       const fd = new FormData(form);
       fd.forEach((v, k) => { if (v) params.append(k, v); });
+      params.append('limit', String(PAGE_SIZE));
       const url = '/api/history/segments?' + params.toString();
-      const segments = await fetch(url).then(r => r.json());
-      const el = document.getElementById('segmentsTable');
-      el.innerHTML = segments.length ? `<table><thead><tr><th>ID</th><th>Camera</th><th>Label</th><th>Confidence</th><th>Start</th><th>End</th><th>Evidence</th><th>Review</th></tr></thead><tbody>${segments.map(s => `<tr><td>${s.id}</td><td>${s.camera_name}</td><td>${s.reviewed_label || s.label}</td><td>${Number(s.confidence || 0).toFixed(2)}</td><td>${s.start_ts?.slice(0,16) || ''}</td><td>${s.end_ts?.slice(0,16) || ''}</td><td>${s.evidence_path ? '<a href="/' + s.evidence_path + '" target="_blank">view</a>' : ''}</td><td><button class="small" onclick="reviewSegment(${s.id}, 'working')">W</button><button class="small" onclick="reviewSegment(${s.id}, 'idle')">I</button><button class="small" onclick="reviewSegment(${s.id}, 'sleeping')">S</button></td></tr>`).join('')}</tbody></table>` : '<p>No segments found</p>';
+      setBusy(true); setStateEmpty(false); setStateError(false);
+      let segments;
+      try {
+        segments = await fetch(url).then(r => r.json());
+      } catch(e){ setBusy(false); setStateError(true); return; }
+      setBusy(false);
+      const tbody = document.getElementById('results-tbody');
+      const cards = document.getElementById('results-cards');
+      if(!segments.length){
+        tbody.innerHTML = '';
+        cards.innerHTML = '';
+        setStateEmpty(true);
+      } else {
+        tbody.innerHTML = segments.map(s => `<tr><td>${s.id}</td><td>${s.camera_name}</td><td>${s.reviewed_label || s.label}</td><td>${Number(s.confidence || 0).toFixed(2)}</td><td>${s.start_ts?.slice(0,16) || ''}</td><td>${s.end_ts?.slice(0,16) || ''}</td><td>${s.evidence_path ? '<a href="/' + s.evidence_path + '" target="_blank">view</a>' : ''}</td><td><button class="small" onclick="reviewSegment(${s.id}, 'working')">W</button><button class="small" onclick="reviewSegment(${s.id}, 'idle')">I</button><button class="small" onclick="reviewSegment(${s.id}, 'sleeping')">S</button></td></tr>`).join('');
+        cards.innerHTML = segments.map(s => `<li class="card"><div><strong>${s.start_ts?.slice(0,16) || ''}</strong></div><div class="small">${s.camera_name}</div><div>${s.reviewed_label || s.label} · ${(Number(s.confidence||0)).toFixed(2)}</div><div>${s.evidence_path ? '<a href="/' + s.evidence_path + '" target="_blank">view</a>' : ''}</div><div class="inline-actions"><button class="small" onclick="reviewSegment(${s.id}, 'working')">W</button><button class="small" onclick="reviewSegment(${s.id}, 'idle')">I</button><button class="small" onclick="reviewSegment(${s.id}, 'sleeping')">S</button></div></li>`).join('');
+        document.getElementById('page-info').textContent = `Page ${page}`;
+      }
     }
     async function reviewSegment(id, label) {
       await fetch('/api/review/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reviewed_label: label, review_note: 'reviewed from GUI' }) });
@@ -75,8 +118,9 @@
       document.getElementById('filterForm').reset();
       loadSegments();
     }
+    document.getElementById('page-prev').addEventListener('click', () => { if(page>1){ page--; loadSegments(); }});
+    document.getElementById('page-next').addEventListener('click', () => { page++; loadSegments(); });
     document.getElementById('filterForm').addEventListener('submit', (ev) => { ev.preventDefault(); loadSegments(); });
     document.addEventListener('DOMContentLoaded', () => { loadFilterOptions(); loadSegments(); });
   </script>
-</body>
-</html>
+{% endblock %}

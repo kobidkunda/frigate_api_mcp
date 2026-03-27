@@ -75,11 +75,32 @@ class AnalyticsService:
     def delete_camera(self, camera_id: int) -> dict[str, Any]:
         # Soft-delete not implemented; perform hard delete via DB cascade
         # Implement as update to enabled=0 if needed later
+        existing = self.db.get_camera(camera_id)
+        if not existing:
+            return {"deleted": False, "error": "not found"}
         with self.db.connect() as conn:
             cur = conn.execute("DELETE FROM cameras WHERE id=?", (camera_id,))
             deleted = cur.rowcount
         self.db.log_audit("api", "camera.delete", "camera", str(camera_id))
         return {"deleted": bool(deleted)}
+
+    def delete_camera_by_name(self, frigate_name: str) -> dict[str, Any]:
+        existing = self.db.get_camera_by_frigate_name(frigate_name)
+        if not existing:
+            return {"deleted": False, "error": "not found"}
+        with self.db.connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM cameras WHERE frigate_name=?", (frigate_name,)
+            )
+            deleted = cur.rowcount
+        self.db.log_audit(
+            "api",
+            "camera.delete",
+            "camera",
+            str(existing["id"]),
+            {"frigate_name": frigate_name},
+        )
+        return {"deleted": bool(deleted), "camera_id": existing["id"]}
 
     def system_health(self) -> dict[str, Any]:
         frigate = self.frigate_client().health()
@@ -201,7 +222,7 @@ class AnalyticsService:
                 camera["id"],
                 {
                     "last_run_at": datetime.now(timezone.utc).isoformat(),
-                    "last_status": f"error: {exc}",
+                    "last_status": f"error: {str(exc)[:180]}",
                 },
             )
             self.db.mark_job_finished(job["id"], "failed", error=str(exc))
@@ -210,25 +231,43 @@ class AnalyticsService:
     def probe_analysis(
         self, camera_id: int | None = None, frigate_name: str | None = None
     ) -> dict[str, Any]:
+        # Try snapshot twice: latest.jpg then snapshot.jpg are already attempted by client.
+        # Here we add one retry cycle to mitigate transient stalls.
+        def _once() -> tuple[bool, dict[str, Any]]:
+            try:
+                if camera_id is not None:
+                    camera = self.db.get_camera(camera_id)
+                    if not camera:
+                        return False, {"ok": False, "error": "Camera not found"}
+                    name = camera["frigate_name"]
+                else:
+                    assert frigate_name is not None
+                    name = frigate_name
+                snapshot_path = self._capture_snapshot(name)
+                result = self.ollama_client().classify_image(snapshot_path)
+                return True, {
+                    "ok": True,
+                    "label": result.get("label", "uncertain"),
+                    "confidence": float(result.get("confidence", 0.0)),
+                }
+            except Exception as exc:
+                return False, {"ok": False, "error": str(exc)}
+
+        ok, res = _once()
+        if ok:
+            return res
+        # Retry once after a short wait
         try:
-            if camera_id is not None:
-                camera = self.db.get_camera(camera_id)
-                if not camera:
-                    return {"ok": False, "error": "Camera not found"}
-                name = camera["frigate_name"]
-            else:
-                assert frigate_name is not None
-                name = frigate_name
-            snapshot_path = self._capture_snapshot(name)
-            result = self.ollama_client().classify_image(snapshot_path)
-            return {
-                "ok": True,
-                "label": result.get("label", "uncertain"),
-                "confidence": float(result.get("confidence", 0.0)),
-            }
-        except Exception as exc:
-            logger.exception("Probe analysis failed")
-            return {"ok": False, "error": str(exc)}
+            import time
+
+            time.sleep(1.0)
+        except Exception:
+            pass
+        ok2, res2 = _once()
+        if ok2:
+            return res2
+        logger.warning("Probe analysis failed twice: %s", res2.get("error"))
+        return res2
 
     def _resolve_job_window(
         self, job: dict[str, Any], camera: dict[str, Any], settings: dict[str, Any]

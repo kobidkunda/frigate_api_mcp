@@ -75,7 +75,7 @@ class FrigateClient:
                 if isinstance(cams, dict):
                     return sorted(list(cams.keys()))
         except Exception:
-            logger.exception("Frigate camera sync failed")
+            logger.exception("Frigate snapshot fetch failed")
         return []
 
     def fetch_latest_snapshot(self, camera_name: str, destination: Path) -> Path:
@@ -92,9 +92,11 @@ class FrigateClient:
             # Discovery may fail even if snapshots work; proceed
             available = set()
         destination.parent.mkdir(parents=True, exist_ok=True)
+        # Request scaled image to reduce transfer/processing time
+        scale_qs = "h=720&quality=70"
         endpoints = [
-            f"{self.base_url}/api/{camera_name}/latest.jpg",
-            f"{self.base_url}/api/{camera_name}/snapshot.jpg",
+            f"{self.base_url}/api/{camera_name}/latest.jpg?{scale_qs}",
+            f"{self.base_url}/api/{camera_name}/grid.jpg?{scale_qs}",
         ]
         last_error: str | None = None
         for endpoint in endpoints:
