@@ -44,6 +44,34 @@ class AnalyticsService:
         )
         return {"count": len(synced), "cameras": synced}
 
+    def create_camera(
+        self,
+        frigate_name: str,
+        name: str | None = None,
+        enabled: bool | None = None,
+        interval_seconds: int | None = None,
+    ) -> dict[str, Any]:
+        camera = self.db.upsert_camera(frigate_name, name)
+        updates: dict[str, Any] = {}
+        if enabled is not None:
+            updates["enabled"] = 1 if enabled else 0
+        if interval_seconds is not None:
+            updates["interval_seconds"] = int(interval_seconds)
+        if updates:
+            camera = self.db.update_camera(camera["id"], updates) or camera
+        self.db.log_audit(
+            "api",
+            "camera.create",
+            "camera",
+            str(camera["id"]),
+            {
+                "frigate_name": frigate_name,
+                **({"name": name} if name else {}),
+                **updates,
+            },
+        )
+        return camera
+
     def system_health(self) -> dict[str, Any]:
         frigate = self.frigate_client().health()
         ollama = self.ollama_client().health()
@@ -169,6 +197,29 @@ class AnalyticsService:
             )
             self.db.mark_job_finished(job["id"], "failed", error=str(exc))
             return {"job": self.db.get_job(job["id"]), "error": str(exc)}
+
+    def probe_analysis(
+        self, camera_id: int | None = None, frigate_name: str | None = None
+    ) -> dict[str, Any]:
+        try:
+            if camera_id is not None:
+                camera = self.db.get_camera(camera_id)
+                if not camera:
+                    return {"ok": False, "error": "Camera not found"}
+                name = camera["frigate_name"]
+            else:
+                assert frigate_name is not None
+                name = frigate_name
+            snapshot_path = self._capture_snapshot(name)
+            result = self.ollama_client().classify_image(snapshot_path)
+            return {
+                "ok": True,
+                "label": result.get("label", "uncertain"),
+                "confidence": float(result.get("confidence", 0.0)),
+            }
+        except Exception as exc:
+            logger.exception("Probe analysis failed")
+            return {"ok": False, "error": str(exc)}
 
     def _resolve_job_window(
         self, job: dict[str, Any], camera: dict[str, Any], settings: dict[str, Any]

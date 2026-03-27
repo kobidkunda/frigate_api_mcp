@@ -4,14 +4,81 @@ async function loadSettings(){ const data=await api('/api/settings'); const form
 async function saveSettings(ev){ ev.preventDefault(); const fd=new FormData(ev.target); const values=Object.fromEntries(fd.entries()); values.frigate_verify_tls = values.frigate_verify_tls === 'true'; values.scheduler_enabled = values.scheduler_enabled === 'true'; values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); await api('/api/settings',{method:'PUT',body:JSON.stringify({values})}); await refreshAll(); alert('Settings saved'); }
 async function loadHealth(){ const data=await api('/api/health'); const el=document.getElementById('healthCards'); const cards=[ ['App', true, 'running'], ['Database', data.database.ok, data.database.message], ['Frigate', data.frigate.ok, data.frigate.version || data.frigate.message || ''], ['Ollama', data.ollama.ok, (data.ollama.models || []).join(', ') || data.ollama.message || ''] ]; el.innerHTML = cards.map(([name,ok,msg]) => `<div class="status-card"><div>${name}</div><div class="${ok?'ok':'bad'}">${ok?'Healthy':'Issue'}</div><div class="small">${msg || ''}</div></div>`).join(''); }
 async function syncCameras(){ await api('/api/frigate/cameras/sync'); await loadCameras(); }
-async function loadCameras(){ const cameras=await api('/api/cameras'); const el=document.getElementById('cameraTable'); el.innerHTML = `<table><thead><tr><th>ID</th><th>Name</th><th>Frigate Name</th><th>Enabled</th><th>Interval</th><th>Status</th><th>Actions</th></tr></thead><tbody>${cameras.map(c=>`<tr><td>${c.id}</td><td><input value="${c.name}" id="camera-name-${c.id}" /></td><td>${c.frigate_name}</td><td><input type="checkbox" ${c.enabled ? 'checked' : ''} id="camera-enabled-${c.id}" /></td><td><input type="number" min="30" value="${c.interval_seconds}" id="camera-interval-${c.id}" /></td><td>${c.last_status || ''}<div class="small">${c.last_run_at || ''}</div></td><td class="inline-actions"><button onclick="saveCamera(${c.id})">Save</button><button class="secondary" onclick="runCamera(${c.id})">Run now</button></td></tr>`).join('')}</tbody></table>`; }
+async function loadCameras(){ const cameras=await api('/api/cameras'); const el=document.getElementById('cameraTable'); const addForm = `<div class="add-camera">
+  <div class="inline-actions">
+    <select id="frigate-camera-select"><option value="">Loading…</option></select>
+    <input id="frigate-manual" placeholder="Manual Frigate Name (optional)" />
+    <input id="camera-display-name" placeholder="Display Name (optional)" />
+    <input id="camera-interval-new" type="number" min="30" value="300" />
+    <label><input id="camera-enabled-new" type="checkbox" checked /> Enabled</label>
+    <button class="secondary" onclick="testNewCamera()">Test</button>
+    <button onclick="addCamera()">Add Camera</button>
+  </div>
+  <div class="small">Use Test to verify connectivity before saving</div>
+</div>`;
+  el.innerHTML = addForm + `<table><thead><tr><th>ID</th><th>Name</th><th>Frigate Name</th><th>Enabled</th><th>Interval</th><th>Status</th><th>Actions</th></tr></thead><tbody>${cameras.map(c=>`<tr><td>${c.id}</td><td><input value="${c.name}" id="camera-name-${c.id}" /></td><td>${c.frigate_name}</td><td><input type="checkbox" ${c.enabled ? 'checked' : ''} id="camera-enabled-${c.id}" /></td><td><input type="number" min="30" value="${c.interval_seconds}" id="camera-interval-${c.id}" /></td><td>${c.last_status || ''}<div class="small">${c.last_run_at || ''}</div></td><td class="inline-actions"><button onclick="saveCamera(${c.id})">Save Camera</button><button class="secondary" onclick="runCamera(${c.id})">Test</button></td></tr>`).join('')}</tbody></table>`;
+  try{ const data = await api('/api/frigate/cameras'); const sel=document.getElementById('frigate-camera-select'); sel.innerHTML = `<option value="">Select Frigate Camera</option>` + (data.cameras||[]).map(n=>`<option value="${n}">${n}</option>`).join(''); }catch(_){ const sel=document.getElementById('frigate-camera-select'); if(sel) sel.innerHTML = `<option value="">(Frigate unavailable)</option>`; }
+}
 async function saveCamera(id){ const payload={ name:document.getElementById(`camera-name-${id}`).value, enabled:document.getElementById(`camera-enabled-${id}`).checked, interval_seconds:Number(document.getElementById(`camera-interval-${id}`).value || 300)}; await api(`/api/cameras/${id}`,{method:'PUT',body:JSON.stringify(payload)}); await loadCameras(); }
 async function runCamera(id){ await api(`/api/cameras/${id}/run`,{method:'POST'}); setTimeout(refreshAll,1000); }
+async function addCamera(){ const sel=document.getElementById('frigate-camera-select'); const manual=document.getElementById('frigate-manual').value.trim(); const frigate_name = manual || (sel && sel.value) || ''; if(!frigate_name){ alert('Choose a Frigate camera or enter one manually'); return; } const payload={ frigate_name, name:document.getElementById('camera-display-name').value.trim()||undefined, enabled:document.getElementById('camera-enabled-new').checked, interval_seconds:Number(document.getElementById('camera-interval-new').value||300)}; await api('/api/cameras',{method:'POST',body:JSON.stringify(payload)}); await loadCameras(); }
+async function testNewCamera(){ const sel=document.getElementById('frigate-camera-select'); const manual=document.getElementById('frigate-manual').value.trim(); const frigate_name = manual || (sel && sel.value) || ''; if(!frigate_name){ alert('Choose a Frigate camera or enter one manually'); return; } const res=await api('/api/cameras/test',{method:'POST',body:JSON.stringify({frigate_name})}); if(res.ok){ alert(`Test OK: ${res.label} (${Number(res.confidence||0).toFixed(2)})`);} else { alert(`Test failed: ${res.error||'unknown error'}`);} }
 async function loadJobs(){ const jobs=await api('/api/jobs'); document.getElementById('jobsTable').innerHTML = `<table><thead><tr><th>ID</th><th>Camera</th><th>Status</th><th>Type</th><th>Scheduled</th><th>Finished</th><th>Error</th></tr></thead><tbody>${jobs.map(j=>`<tr><td>${j.id}</td><td>${j.camera_name || j.camera_id}</td><td>${j.status}</td><td>${j.job_type}</td><td>${j.scheduled_for || ''}</td><td>${j.finished_at || ''}</td><td>${j.error || ''}</td></tr>`).join('')}</tbody></table>`; }
 async function loadSegments(){ const segments=await api('/api/history/segments'); document.getElementById('segmentsTable').innerHTML = `<table><thead><tr><th>ID</th><th>Camera</th><th>Label</th><th>Confidence</th><th>Window</th><th>Evidence</th><th>Review</th></tr></thead><tbody>${segments.map(s=>`<tr><td>${s.id}</td><td>${s.camera_name}</td><td>${s.reviewed_label || s.label}</td><td>${Number(s.confidence || 0).toFixed(2)}</td><td>${s.start_ts}<div class="small">${s.end_ts}</div></td><td>${s.evidence_path ? `<a href="/${s.evidence_path}" target="_blank">open</a>` : ''}</td><td><div class="inline-actions"><button class="secondary" onclick="reviewSegment(${s.id}, 'working')">Mark working</button><button class="secondary" onclick="reviewSegment(${s.id}, 'idle')">Mark idle</button><button class="secondary" onclick="reviewSegment(${s.id}, 'sleeping')">Mark sleeping</button></div></td></tr>`).join('')}</tbody></table>`; }
 async function reviewSegment(id,label){ await api(`/api/review/${id}`,{method:'POST',body:JSON.stringify({reviewed_label:label,review_note:'manual review from GUI'})}); await loadSegments(); }
 async function loadChart(){ const rows=await api('/api/charts/daily?days=7'); const canvas=document.getElementById('chartCanvas'); const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); const pad=40; const width=canvas.width - pad*2; const height=canvas.height - pad*2; const values=rows.flatMap(r=>[r.working_seconds,r.idle_seconds,r.sleeping_seconds]); const max=Math.max(1,...values); ctx.strokeStyle='#7082c3'; ctx.beginPath(); ctx.moveTo(pad,pad); ctx.lineTo(pad,pad+height); ctx.lineTo(pad+width,pad+height); ctx.stroke(); const barWidth=width/Math.max(1,rows.length*4); rows.forEach((row,i)=>{ const baseX=pad+i*barWidth*4+barWidth; const bars=[row.working_seconds,row.idle_seconds,row.sleeping_seconds]; const colors=['#3ad48f','#ffcc66','#ff5d73']; bars.forEach((val,idx)=>{ const h=(val/max)*height; ctx.fillStyle=colors[idx]; ctx.fillRect(baseX+idx*barWidth,pad+height-h,barWidth-2,h);}); ctx.fillStyle='#cbd5ff'; ctx.font='10px sans-serif'; ctx.fillText(row.day.slice(5), baseX, pad+height+12); }); }
 async function loadReport(){ const today=new Date().toISOString().slice(0,10); const report=await api(`/api/reports/daily?day=${today}`); const t=report.totals || {}; document.getElementById('reportView').innerHTML = `<div><strong>Date:</strong> ${report.day}</div><div><strong>Working:</strong> ${fmtSec(t.working_seconds)}</div><div><strong>Idle:</strong> ${fmtSec(t.idle_seconds)}</div><div><strong>Sleeping:</strong> ${fmtSec(t.sleeping_seconds)}</div><div><strong>Uncertain:</strong> ${fmtSec(t.uncertain_seconds)}</div><div><strong>Stopped:</strong> ${fmtSec(t.stopped_seconds)}</div><div class="small">Recent segments: ${(report.recent_segments || []).length}</div>`; }
 async function loadLog(name){ const data=await api(`/api/logs/tail?name=${name}`); document.getElementById('logView').textContent = data.content || ''; }
-async function refreshAll(){ try{ await Promise.all([loadSettings(), loadHealth(), loadCameras(), loadJobs(), loadSegments(), loadChart(), loadReport()]); await loadLog('worker'); } catch(err){ console.error(err); alert(err.message || String(err)); } }
-document.getElementById('settingsForm').addEventListener('submit', saveSettings); refreshAll();
+function el(id){ return document.getElementById(id); }
+async function refreshAll(){
+  try{
+    const tasks=[];
+    if(el('settingsForm')) tasks.push(loadSettings());
+    if(el('healthCards')) tasks.push(loadHealth());
+    if(el('cameraTable')) tasks.push(loadCameras());
+    if(el('jobsTable')) tasks.push(loadJobs());
+    if(el('segmentsTable')) tasks.push(loadSegments());
+    if(el('chartCanvas')) tasks.push(loadChart());
+    if(el('reportView')) tasks.push(loadReport());
+    await Promise.all(tasks);
+    if(el('logView')) await loadLog('worker');
+  } catch(err){ console.error(err); alert(err.message || String(err)); }
+}
+
+function initApp(){
+  const form = el('settingsForm');
+  if(form){ form.addEventListener('submit', saveSettings); }
+  refreshAll();
+}
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp); else initApp();
+
+// Theme manager with localStorage and system fallback
+(function(){
+  const KEY = 'fa_theme';
+  function applyTheme(theme){
+    if(theme === 'light' || theme === 'dark'){ document.documentElement.setAttribute('data-theme', theme); }
+    else { document.documentElement.removeAttribute('data-theme'); }
+  }
+  function initTheme(){
+    try{ const stored = localStorage.getItem(KEY); applyTheme(stored || ''); }catch(_){/* ignore */}
+    const toggle = document.getElementById('themeToggle');
+    if(toggle){
+      toggle.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        try{ localStorage.setItem(KEY, next); }catch(_){/* ignore */}
+      });
+    }
+    const menuToggle = document.getElementById('menuToggle');
+    const primaryNav = document.getElementById('primaryNav');
+    if(menuToggle && primaryNav){
+      menuToggle.addEventListener('click', () => {
+        const open = primaryNav.classList.toggle('open');
+        menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initTheme); else initTheme();
+})();

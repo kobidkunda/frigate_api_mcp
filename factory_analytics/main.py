@@ -54,6 +54,18 @@ class BackfillPayload(BaseModel):
     end_ts: str
 
 
+class CameraCreate(BaseModel):
+    frigate_name: str
+    name: str | None = None
+    enabled: bool | None = None
+    interval_seconds: int | None = None
+
+
+class CameraTestPayload(BaseModel):
+    camera_id: int | None = None
+    frigate_name: str | None = None
+
+
 @app.on_event("startup")
 def startup_event():
     worker.start()
@@ -67,6 +79,14 @@ def shutdown_event():
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+
+@app.get("/favicon.ico")
+def favicon():
+    icon_path = BASE_DIR / "factory_analytics" / "static" / "favicon.ico"
+    if icon_path.exists():
+        return FileResponse(icon_path)
+    raise HTTPException(status_code=404, detail="File not found")
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -130,9 +150,24 @@ def sync_cameras():
     return service.sync_cameras_from_frigate()
 
 
+@app.get("/api/frigate/cameras")
+def frigate_cameras():
+    return {"cameras": service.frigate_client().fetch_cameras()}
+
+
 @app.get("/api/cameras")
 def list_cameras():
     return service.list_cameras()
+
+
+@app.post("/api/cameras")
+def create_camera(payload: CameraCreate):
+    return service.create_camera(
+        payload.frigate_name,
+        name=payload.name,
+        enabled=payload.enabled,
+        interval_seconds=payload.interval_seconds,
+    )
 
 
 @app.put("/api/cameras/{camera_id}")
@@ -179,6 +214,17 @@ def retry_job(job_id: int):
 @app.post("/api/cameras/{camera_id}/run")
 def run_camera(camera_id: int):
     return service.queue_analysis(camera_id, {"source": "manual"})
+
+
+@app.post("/api/cameras/test")
+def test_camera(payload: CameraTestPayload):
+    if (payload.camera_id is None) == (payload.frigate_name is None):
+        raise HTTPException(
+            status_code=400, detail="Provide exactly one of camera_id or frigate_name"
+        )
+    return service.probe_analysis(
+        camera_id=payload.camera_id, frigate_name=payload.frigate_name
+    )
 
 
 @app.post("/api/jobs/backfill")
@@ -270,13 +316,14 @@ def evidence(segment_id: int):
 
 @app.get("/{file_path:path}")
 def get_file(file_path: str):
+    # Allow only evidence files under data/evidence, everything else forbidden
     evidence_root = (BASE_DIR / "data" / "evidence").resolve()
-    if not file_path.startswith("data/evidence/"):
-        raise HTTPException(status_code=403, detail="Forbidden")
-    path = BASE_DIR / file_path
-    resolved = path.resolve()
-    if not str(resolved).startswith(str(evidence_root)):
-        raise HTTPException(status_code=403, detail="Forbidden")
-    if resolved.exists() and resolved.is_file():
-        return FileResponse(resolved)
-    raise HTTPException(status_code=404, detail="File not found")
+    if file_path.startswith("data/evidence/"):
+        path = BASE_DIR / file_path
+        resolved = path.resolve()
+        if not str(resolved).startswith(str(evidence_root)):
+            raise HTTPException(status_code=403, detail="Forbidden")
+        if resolved.exists() and resolved.is_file():
+            return FileResponse(resolved)
+        raise HTTPException(status_code=404, detail="File not found")
+    raise HTTPException(status_code=403, detail="Forbidden")

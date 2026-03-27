@@ -1,31 +1,33 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Factory Analytics - Dashboard</title>
-  <link rel="stylesheet" href="/static/styles.css" />
-</head>
-<body>
-  <nav class="nav-bar">
-    <div class="nav-brand">Factory Analytics</div>
-    <div class="nav-links">
-      <a href="/dashboard" class="nav-active">Dashboard</a>
-      <a href="/settings">Settings</a>
-      <a href="/history">History</a>
-      <a href="/logs">Logs</a>
-    </div>
-  </nav>
-  <main class="grid">
+{% extends "partials/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+  <main id="main" class="grid" role="main">
+    {% set tabs = [
+      { 'label': 'Health', 'href': '/dashboard', 'active': True },
+      { 'label': 'Settings', 'href': '/settings', 'active': False }
+    ] %}
+    {% include "partials/secondary_tabs.html" with context %}
+
+    <section class="card span-2">
+      <h2>Quick Actions</h2>
+      <div class="actions-row">
+        <button class="btn primary" onclick="syncCameras()">Sync Cameras</button>
+        <button class="btn" onclick="refreshAll()">Refresh All</button>
+        <a class="btn" href="/logs">View Logs</a>
+      </div>
+    </section>
     <section class="card span-2">
       <h2>System Health</h2>
-      <div id="healthCards" class="cards"></div>
+      <div id="health-region" role="region" aria-live="polite" aria-busy="false">
+        <div id="healthCards" class="kpi-grid" aria-label="Key indicators"></div>
+        <div class="state state-empty" id="health-empty" hidden>No health data</div>
+        <div class="state state-error" id="health-error" role="alert" hidden>Failed to load health</div>
+        <div class="state state-loading" id="health-loading" aria-hidden="true" hidden>Loading…</div>
+      </div>
     </section>
     <section class="card span-2"><h2>Cameras</h2><div id="cameraTable"></div></section>
     <section class="card"><h2>Daily Chart</h2><canvas id="chartCanvas" width="600" height="240"></canvas></section>
     <section class="card"><h2>Daily Report</h2><div id="reportView" class="report"></div></section>
   </main>
-  <script src="/static/app.js"></script>
   <script>document.addEventListener('DOMContentLoaded', () => { loadHealth(); loadCameras(); loadChart(); loadReport(); });</script>
-</body>
-</html>
+{% endblock %}
