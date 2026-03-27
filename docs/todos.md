@@ -6,6 +6,11 @@
   - Started: 2026-03-28
   - Related: docs/plans/2026-03-28-camera-management-design.md, docs/implementation/2026-03-28-camera-management.md
   - Next step: verify snapshot timeout/auth settings; confirm Delete flow end-to-end
+- [ ] Group analytics foundation: groups and camera membership API
+  - Owner: agent
+  - Started: 2026-03-28
+  - Related: docs/plans/2026-03-28-group-analytics-and-merged-scenes-plan.md, docs/implementation/2026-03-28-group-analytics.md
+  - Next step: persist group analysis into rollups and complete group-aware processed-events/charts summaries
 - [ ] Harden frontend init to avoid null element access
   - Owner: agent
   - Started: 2026-03-28

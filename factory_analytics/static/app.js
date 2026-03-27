@@ -1,7 +1,20 @@
 async function api(url, options = {}) { const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }); if (!res.ok) { const text = await res.text(); throw new Error(text || `Request failed: ${res.status}`);} return await res.json(); }
 function fmtSec(sec){ sec=Number(sec||0); const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); return `${h}h ${m}m`; }
 async function loadSettings(){ const data=await api('/api/settings'); const form=document.getElementById('settingsForm'); Object.entries(data).forEach(([k,v])=>{ const field=form.elements.namedItem(k); if(!field) return; field.value=typeof v==='boolean'?String(v):v;}); }
-async function saveSettings(ev){ ev.preventDefault(); const fd=new FormData(ev.target); const values=Object.fromEntries(fd.entries()); values.frigate_verify_tls = values.frigate_verify_tls === 'true'; values.scheduler_enabled = values.scheduler_enabled === 'true'; values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); await api('/api/settings',{method:'PUT',body:JSON.stringify({values})}); await refreshAll(); alert('Settings saved'); }
+async function saveSettings(ev){ ev.preventDefault(); const fd=new FormData(ev.target); const values=Object.fromEntries(fd.entries()); values.frigate_verify_tls = values.frigate_verify_tls === 'true'; values.scheduler_enabled = values.scheduler_enabled === 'true'; values.ollama_enabled = values.ollama_enabled === 'true'; values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); await api('/api/settings',{method:'PUT',body:JSON.stringify({values})}); await refreshAll(); alert('Settings saved'); }
+
+async function testOllamaVision(){
+  const out = document.getElementById('ollama-test-result');
+  if(out) out.textContent = 'Testing Ollama vision...';
+  try {
+    const result = await api('/api/settings/ollama/test', { method: 'POST' });
+    if(out) out.textContent = result.ok
+      ? `OK: ${result.model} on ${result.camera} -> ${result.label} (${Number(result.confidence || 0).toFixed(2)})`
+      : `Failed: ${result.message}`;
+  } catch (err) {
+    if(out) out.textContent = `Failed: ${err.message || String(err)}`;
+  }
+}
 async function loadHealth(){ const data=await api('/api/health'); const el=document.getElementById('healthCards'); const cards=[ ['App', true, 'running'], ['Database', data.database.ok, data.database.message], ['Frigate', data.frigate.ok, data.frigate.version || data.frigate.message || ''], ['Ollama', data.ollama.ok, (data.ollama.models || []).join(', ') || data.ollama.message || ''] ]; el.innerHTML = cards.map(([name,ok,msg]) => `<div class="status-card"><div>${name}</div><div class="${ok?'ok':'bad'}">${ok?'Healthy':'Issue'}</div><div class="small">${msg || ''}</div></div>`).join(''); }
 async function syncCameras(){ await api('/api/frigate/cameras/sync'); await loadCameras(); }
 async function loadCameras(){ const cameras=await api('/api/cameras'); const el=document.getElementById('cameraTable'); const addForm = `<div class="add-camera">
@@ -23,6 +36,10 @@ async function loadCameras(){ const cameras=await api('/api/cameras'); const el=
   el.innerHTML = addForm + `<table><thead><tr><th>ID</th><th>Name</th><th>Frigate Name</th><th>Enabled</th><th>Interval</th><th>Status</th><th>Actions</th></tr></thead><tbody>${cameras.map(c=>`<tr><td>${c.id}</td><td><input value="${c.name}" id="camera-name-${c.id}" /></td><td>${c.frigate_name}</td><td><input type="checkbox" ${c.enabled ? 'checked' : ''} id="camera-enabled-${c.id}" /></td><td><input type="number" min="30" value="${c.interval_seconds}" id="camera-interval-${c.id}" /></td><td>${c.last_status || ''}<div class="small">${c.last_run_at || ''}</div><div id="camera-test-status-${c.id}" class="small"></div></td><td class="inline-actions"><button onclick="saveCamera(${c.id})">Save Camera</button><button class="secondary" onclick="testCameraRow(${c.id})">Test</button><button class="danger" onclick="deleteCamera(${c.id})">Delete</button></td></tr>`).join('')}</tbody></table>`;
   try{ const data = await api('/api/frigate/cameras'); const sel=document.getElementById('frigate-camera-select'); sel.innerHTML = `<option value="">Select Frigate Camera</option>` + (data.cameras||[]).map(n=>`<option value="${n}">${n}</option>`).join(''); }catch(_){ const sel=document.getElementById('frigate-camera-select'); if(sel) sel.innerHTML = `<option value="">(Frigate unavailable)</option>`; }
 }
+async function loadGroups(){ const el=document.getElementById('groupTable'); if(!el) return; const groups=await api('/api/groups'); const cameras=await api('/api/cameras'); const options = cameras.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); el.innerHTML = `<div class="add-group"><div class="inline-actions"><input id="group-type" placeholder="machine or room" /><input id="group-name" placeholder="Group name" /><button onclick="addGroup()">Add Group</button></div></div><table><thead><tr><th>ID</th><th>Type</th><th>Name</th><th>Cameras</th><th>Actions</th></tr></thead><tbody>${groups.map(g=>`<tr><td>${g.id}</td><td>${g.group_type}</td><td>${g.name}</td><td><select id="group-camera-${g.id}">${options}</select></td><td class="inline-actions"><button onclick="addCameraToGroup(${g.id})">Add Camera</button><button class="secondary" onclick="runGroup(${g.id})">Run Group</button></td></tr>`).join('')}</tbody></table>`; }
+async function addGroup(){ const group_type=document.getElementById('group-type').value.trim(); const name=document.getElementById('group-name').value.trim(); if(!group_type || !name){ alert('Enter group type and name'); return; } await api('/api/groups',{method:'POST',body:JSON.stringify({group_type,name})}); await loadGroups(); }
+async function addCameraToGroup(groupId){ const sel=document.getElementById(`group-camera-${groupId}`); await api(`/api/groups/${groupId}/cameras`,{method:'POST',body:JSON.stringify({camera_id:Number(sel.value)})}); alert('Camera added to group'); }
+async function runGroup(groupId){ const res = await api(`/api/groups/${groupId}/run`,{method:'POST'}); alert(`Group OK: ${res.label} (${Number(res.confidence||0).toFixed(2)})`); }
 async function saveCamera(id){ const payload={ name:document.getElementById(`camera-name-${id}`).value, enabled:document.getElementById(`camera-enabled-${id}`).checked, interval_seconds:Number(document.getElementById(`camera-interval-${id}`).value || 300)}; await api(`/api/cameras/${id}`,{method:'PUT',body:JSON.stringify(payload)}); await loadCameras(); }
 async function runCamera(id){ await api(`/api/cameras/${id}/run`,{method:'POST'}); setTimeout(refreshAll,1000); }
 async function addCamera(){ const sel=document.getElementById('frigate-camera-select'); const manual=document.getElementById('frigate-manual').value.trim(); const frigate_name = manual || (sel && sel.value) || ''; if(!frigate_name){ alert('Choose a Frigate camera or enter one manually'); return; } const payload={ frigate_name, name:document.getElementById('camera-display-name').value.trim()||undefined, enabled:document.getElementById('camera-enabled-new').checked, interval_seconds:Number(document.getElementById('camera-interval-new').value||300)}; await api('/api/cameras',{method:'POST',body:JSON.stringify(payload)}); // Update ollama enablement setting globally if user changed it
@@ -88,6 +105,7 @@ async function refreshAll(){
     if(el('settingsForm')) tasks.push(loadSettings());
     if(el('healthCards')) tasks.push(loadHealth());
     if(el('cameraTable')) tasks.push(loadCameras());
+    if(el('groupTable')) tasks.push(loadGroups());
     if(el('jobsTable')) tasks.push(loadJobs());
     if(el('segmentsTable')) tasks.push(loadSegments());
     if(el('chartCanvas')) tasks.push(loadChart());
@@ -100,6 +118,8 @@ async function refreshAll(){
 function initApp(){
   const form = el('settingsForm');
   if(form){ form.addEventListener('submit', saveSettings); }
+  const testBtn = el('testOllamaBtn');
+  if(testBtn){ testBtn.addEventListener('click', testOllamaVision); }
   refreshAll();
 }
 

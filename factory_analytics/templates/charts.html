@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Analytics - Charts</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav-bar">
+    <div class="nav-brand">Factory Analytics</div>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <a href="/history">History</a>
+      <a href="/processed-events">Processed Events</a>
+      <a href="/charts" class="nav-active">Charts</a>
+      <a href="/logs">Logs</a>
+    </div>
+  </nav>
+  <main>
+    <section class="card">
+      <h2>Charts</h2>
+      <div class="grid two-col">
+        <section>
+          <h3>Heatmap</h3>
+          <div id="heatmapView"></div>
+        </section>
+        <section>
+          <h3>Shift Summary</h3>
+          <div id="shiftSummaryView"></div>
+        </section>
+        <section>
+          <h3>Camera Summary</h3>
+          <div id="cameraSummaryView"></div>
+        </section>
+        <section>
+          <h3>Job Failures</h3>
+          <div id="jobFailuresView"></div>
+        </section>
+        <section>
+          <h3>Confidence Distribution</h3>
+          <div id="confidenceDistributionView"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="/static/charts.js"></script>
+</body>
+</html>

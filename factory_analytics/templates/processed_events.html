@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Analytics - Processed Events</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav-bar">
+    <div class="nav-brand">Factory Analytics</div>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <a href="/history">History</a>
+      <a href="/processed-events" class="nav-active">Processed Events</a>
+      <a href="/logs">Logs</a>
+    </div>
+  </nav>
+  <main>
+    <section class="card">
+      <h2>Processed Events</h2>
+      <form id="processedFilterForm" class="inline-form">
+        <label>View
+          <select name="view">
+            <option value="jobs">Jobs</option>
+            <option value="segments">Segments</option>
+          </select>
+        </label>
+        <label>Shift
+          <select name="shift">
+            <option value="">All</option>
+            <option value="day">Day</option>
+            <option value="night">Night</option>
+          </select>
+        </label>
+        <label>Group
+          <input name="group_id" type="number" min="1" />
+        </label>
+        <label>From <input name="from" type="date" /></label>
+        <label>To <input name="to" type="date" /></label>
+        <label>Sort
+          <select name="sort_by">
+            <option value="time">Time</option>
+            <option value="camera">Camera</option>
+            <option value="status">Status</option>
+            <option value="confidence">Confidence</option>
+            <option value="label">Label</option>
+          </select>
+        </label>
+        <label>Direction
+          <select name="sort_dir">
+            <option value="desc">Desc</option>
+            <option value="asc">Asc</option>
+          </select>
+        </label>
+        <button type="submit">Apply</button>
+      </form>
+      <div id="processedEventsTable"></div>
+      <nav class="pagination" aria-label="Processed events pagination">
+        <button type="button" id="page-prev">Prev</button>
+        <span id="page-info">Page 1</span>
+        <button type="button" id="page-next">Next</button>
+      </nav>
+    </section>
+  </main>
+  <script src="/static/processed_events.js"></script>
+</body>
+</html>

@@ -26,6 +26,15 @@
           <label>Ollama URL <input name="ollama_url" placeholder="http://localhost:11434/api" /></label>
           <label>Vision Model <input name="ollama_vision_model" placeholder="qwen2.5-vl:7b" /></label>
           <label>Timeout (sec) <input name="ollama_timeout_sec" type="number" min="10" /></label>
+          <label>Keep Alive <input name="ollama_keep_alive" placeholder="5m" /></label>
+          <label>Ollama Enabled <select name="ollama_enabled">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select></label>
+          <div class="inline-actions">
+            <button type="button" id="testOllamaBtn">Test Ollama Vision</button>
+          </div>
+          <div id="ollama-test-result" class="small"></div>
         </fieldset>
         <fieldset>
           <legend>Analysis Settings</legend>

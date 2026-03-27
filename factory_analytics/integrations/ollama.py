@@ -12,13 +12,23 @@ logger = setup_logging()
 
 DEFAULT_PROMPT = (
     "You are classifying a factory camera image. "
-    "Return JSON only with keys label, confidence, notes. "
-    "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect. "
+    "Return JSON only with keys label, confidence, notes, boxes. "
+    "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
     "Base your answer only on visible evidence. "
-    "Confidence must be a number from 0 to 1."
+    "Confidence must be a number from 0 to 1. "
+    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1."
 )
 
-VALID_LABELS = {"working", "idle", "sleeping", "uncertain", "stopped", "sleep-suspect"}
+VALID_LABELS = {
+    "working",
+    "idle",
+    "sleeping",
+    "uncertain",
+    "stopped",
+    "sleep-suspect",
+    "timepass",
+    "operator_missing",
+}
 
 
 class OllamaClient:
@@ -96,10 +106,39 @@ class OllamaClient:
                 raise RuntimeError(
                     f"Model {self.model} returned confidence out of range: {confidence}"
                 )
+            boxes = parsed.get("boxes")
+            if not isinstance(boxes, list):
+                raise RuntimeError(f"Model {self.model} returned invalid boxes payload")
+            for item in boxes:
+                if not isinstance(item, dict):
+                    raise RuntimeError(
+                        f"Model {self.model} returned non-object box entry"
+                    )
+                if item.get("label") != "person":
+                    raise RuntimeError(
+                        f"Model {self.model} returned non-person box label: {item.get('label')}"
+                    )
+                box = item.get("box")
+                if not isinstance(box, list) or len(box) != 4:
+                    raise RuntimeError(
+                        f"Model {self.model} returned invalid box coordinates"
+                    )
+                for value in box:
+                    try:
+                        num = float(value)
+                    except (TypeError, ValueError) as exc:
+                        raise RuntimeError(
+                            f"Model {self.model} returned non-numeric box coordinate"
+                        ) from exc
+                    if not (0.0 <= num <= 1.0):
+                        raise RuntimeError(
+                            f"Model {self.model} returned box coordinate out of range: {num}"
+                        )
             return {
                 "label": label,
                 "confidence": confidence,
                 "notes": parsed.get("notes", ""),
+                "boxes": boxes,
                 "raw": data,
             }
         except json.JSONDecodeError as exc:
