@@ -1,11 +1,11 @@
 # TODOs
 
 ## In Progress
-- [ ] Camera management: add/edit/test/save
+- [ ] Camera management: add/edit/test/save/delete, and robust Frigate snapshot
   - Owner: agent
   - Started: 2026-03-28
   - Related: docs/plans/2026-03-28-camera-management-design.md, docs/implementation/2026-03-28-camera-management.md
-  - Next step: implement API endpoints and wire UI form
+  - Next step: verify snapshot timeout/auth settings; confirm Delete flow end-to-end
 - [ ] Harden frontend init to avoid null element access
   - Owner: agent
   - Started: 2026-03-28

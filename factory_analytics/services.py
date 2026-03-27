@@ -72,6 +72,15 @@ class AnalyticsService:
         )
         return camera
 
+    def delete_camera(self, camera_id: int) -> dict[str, Any]:
+        # Soft-delete not implemented; perform hard delete via DB cascade
+        # Implement as update to enabled=0 if needed later
+        with self.db.connect() as conn:
+            cur = conn.execute("DELETE FROM cameras WHERE id=?", (camera_id,))
+            deleted = cur.rowcount
+        self.db.log_audit("api", "camera.delete", "camera", str(camera_id))
+        return {"deleted": bool(deleted)}
+
     def system_health(self) -> dict[str, Any]:
         frigate = self.frigate_client().health()
         ollama = self.ollama_client().health()

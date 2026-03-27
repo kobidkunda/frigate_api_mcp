@@ -22,6 +22,13 @@ class FrigateClient:
         self.username = settings.get("frigate_username") or ""
         self.password = settings.get("frigate_password") or ""
         self.token = settings.get("frigate_bearer_token") or ""
+        # Snapshot timeout (seconds); default 30
+        try:
+            self.snapshot_timeout = int(
+                settings.get("frigate_snapshot_timeout_sec", 30)
+            )
+        except Exception:
+            self.snapshot_timeout = 30
 
     def _headers(self) -> dict[str, str]:
         headers = {}
@@ -74,13 +81,16 @@ class FrigateClient:
     def fetch_latest_snapshot(self, camera_name: str, destination: Path) -> Path:
         if not self.base_url:
             raise RuntimeError("Frigate URL not configured")
-        # Validate camera exists up front for clearer errors
-        available = set(self.fetch_cameras())
-        if camera_name not in available:
-            raise RuntimeError(
-                f"Camera '{camera_name}' not found on Frigate at {self.base_url}. Available: "
-                + ", ".join(sorted(available))
-            )
+        # Try to validate camera existence, but do not fail hard if discovery is slow/unavailable
+        try:
+            available = set(self.fetch_cameras())
+            if available and camera_name not in available:
+                logger.warning(
+                    "Frigate camera '%s' not found in discovery list", camera_name
+                )
+        except Exception:
+            # Discovery may fail even if snapshots work; proceed
+            available = set()
         destination.parent.mkdir(parents=True, exist_ok=True)
         endpoints = [
             f"{self.base_url}/api/{camera_name}/latest.jpg",
@@ -90,10 +100,13 @@ class FrigateClient:
         for endpoint in endpoints:
             try:
                 with httpx.Client(
-                    timeout=30,
+                    timeout=httpx.Timeout(
+                        connect=5, read=self.snapshot_timeout, write=5, pool=5
+                    ),
                     verify=self.verify_tls,
                     headers=self._headers(),
                     auth=self._auth(),
+                    follow_redirects=True,
                 ) as client:
                     r = client.get(endpoint)
                     r.raise_for_status()

@@ -227,6 +227,12 @@ def test_camera(payload: CameraTestPayload):
     )
 
 
+@app.delete("/api/cameras/{camera_id}")
+def delete_camera(camera_id: int):
+    result = service.delete_camera(camera_id)
+    return result
+
+
 @app.post("/api/jobs/backfill")
 def backfill(payload: BackfillPayload):
     return service.queue_analysis(payload.camera_id, payload.model_dump())
