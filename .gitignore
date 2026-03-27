@@ -13,3 +13,4 @@ venv.bak/
 .idea/
 .vscode/
 *.log
+.worktrees/
