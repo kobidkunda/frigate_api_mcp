@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from factory_analytics.config import (
     SQLITE_PATH,
@@ -39,6 +40,15 @@ DEFAULT_SETTINGS = {
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def shift_for_iso(ts: str, tz_name: str) -> str:
+    dt = datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    local = dt.astimezone(ZoneInfo(tz_name))
+    hour = local.hour
+    return "day" if 9 <= hour < 21 else "night"
 
 
 class Database:
@@ -78,6 +88,22 @@ class Database:
                     last_status TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    group_type TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(group_type, name)
+                );
+                CREATE TABLE IF NOT EXISTS camera_groups (
+                    camera_id INTEGER NOT NULL,
+                    group_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(camera_id, group_id),
+                    FOREIGN KEY(camera_id) REFERENCES cameras(id) ON DELETE CASCADE,
+                    FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE
                 );
                 CREATE TABLE IF NOT EXISTS jobs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -201,6 +227,81 @@ class Database:
             rows = conn.execute("SELECT * FROM cameras ORDER BY id").fetchall()
             return [dict(row) for row in rows]
 
+    def create_group(self, group_type: str, name: str) -> dict[str, Any]:
+        now = utcnow()
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO groups(group_type, name, created_at, updated_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(group_type, name) DO UPDATE SET updated_at=excluded.updated_at""",
+                (group_type, name, now, now),
+            )
+        return self.get_group_by_type_name(group_type, name)
+
+    def list_groups(self) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM groups ORDER BY group_type, name, id"
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_group(self, group_id: int) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM groups WHERE id=?", (group_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_group_by_type_name(
+        self, group_type: str, name: str
+    ) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM groups WHERE group_type=? AND name=?",
+                (group_type, name),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def add_camera_to_group(self, camera_id: int, group_id: int) -> dict[str, Any]:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO camera_groups(camera_id, group_id, created_at) VALUES (?, ?, ?)",
+                (camera_id, group_id, utcnow()),
+            )
+        return {"camera_id": camera_id, "group_id": group_id}
+
+    def remove_camera_from_group(self, camera_id: int, group_id: int) -> dict[str, Any]:
+        with self.connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM camera_groups WHERE camera_id=? AND group_id=?",
+                (camera_id, group_id),
+            )
+        return {
+            "deleted": bool(cur.rowcount),
+            "camera_id": camera_id,
+            "group_id": group_id,
+        }
+
+    def list_group_cameras(self, group_id: int) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT c.* FROM camera_groups cg
+                   JOIN cameras c ON c.id = cg.camera_id
+                   WHERE cg.group_id=? ORDER BY c.id""",
+                (group_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_camera_groups(self, camera_id: int) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT g.* FROM camera_groups cg
+                   JOIN groups g ON g.id = cg.group_id
+                   WHERE cg.camera_id=? ORDER BY g.group_type, g.name, g.id""",
+                (camera_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     def get_camera(self, camera_id: int) -> dict[str, Any] | None:
         with self.connect() as conn:
             row = conn.execute(
@@ -314,6 +415,79 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def list_jobs_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 25,
+        status: str | None = None,
+        camera_id: int | None = None,
+        from_ts: str | None = None,
+        to_ts: str | None = None,
+        shift: str | None = None,
+        sort_by: str = "id",
+        sort_dir: str = "desc",
+        tz_name: str = "UTC",
+        group_id: int | None = None,
+    ) -> dict[str, Any]:
+        conditions = []
+        params: list[Any] = []
+        if status is not None:
+            conditions.append("j.status = ?")
+            params.append(status)
+        if camera_id is not None:
+            conditions.append("j.camera_id = ?")
+            params.append(camera_id)
+        if group_id is not None:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM camera_groups cg WHERE cg.camera_id = j.camera_id AND cg.group_id = ?)"
+            )
+            params.append(group_id)
+        if from_ts is not None:
+            conditions.append(
+                "COALESCE(j.finished_at, j.started_at, j.scheduled_for, j.created_at) >= ?"
+            )
+            params.append(from_ts)
+        if to_ts is not None:
+            conditions.append(
+                "COALESCE(j.finished_at, j.started_at, j.scheduled_for, j.created_at) <= ?"
+            )
+            params.append(to_ts)
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        order_col = {
+            "id": "j.id",
+            "status": "j.status",
+            "camera": "c.name",
+            "time": "COALESCE(j.finished_at, j.started_at, j.scheduled_for, j.created_at)",
+        }.get(sort_by, "j.id")
+        order_dir = "ASC" if sort_dir.lower() == "asc" else "DESC"
+        offset = (max(page, 1) - 1) * page_size
+        with self.connect() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM jobs j JOIN cameras c ON c.id = j.camera_id{where}",
+                params,
+            ).fetchone()[0]
+            rows = conn.execute(
+                f"""SELECT j.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name
+                   FROM jobs j JOIN cameras c ON c.id = j.camera_id{where}
+                   ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?""",
+                (*params, page_size, offset),
+            ).fetchall()
+        items = [dict(row) for row in rows]
+        if shift in {"day", "night"}:
+            items = [
+                item
+                for item in items
+                if shift_for_iso(
+                    item.get("finished_at")
+                    or item.get("started_at")
+                    or item.get("scheduled_for")
+                    or item.get("created_at"),
+                    tz_name,
+                )
+                == shift
+            ]
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+
     def create_segment(
         self,
         job_id: int,
@@ -388,6 +562,69 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def list_segments_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 25,
+        camera_id: int | None = None,
+        label: str | None = None,
+        from_ts: str | None = None,
+        to_ts: str | None = None,
+        shift: str | None = None,
+        sort_by: str = "id",
+        sort_dir: str = "desc",
+        tz_name: str = "UTC",
+        group_id: int | None = None,
+    ) -> dict[str, Any]:
+        conditions = []
+        params: list[Any] = []
+        if camera_id is not None:
+            conditions.append("s.camera_id = ?")
+            params.append(camera_id)
+        if group_id is not None:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM camera_groups cg WHERE cg.camera_id = s.camera_id AND cg.group_id = ?)"
+            )
+            params.append(group_id)
+        if label is not None:
+            conditions.append("s.label = ?")
+            params.append(label)
+        if from_ts is not None:
+            conditions.append("s.start_ts >= ?")
+            params.append(from_ts)
+        if to_ts is not None:
+            conditions.append("s.end_ts <= ?")
+            params.append(to_ts)
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        order_col = {
+            "id": "s.id",
+            "confidence": "s.confidence",
+            "camera": "c.name",
+            "label": "s.label",
+            "time": "s.start_ts",
+        }.get(sort_by, "s.id")
+        order_dir = "ASC" if sort_dir.lower() == "asc" else "DESC"
+        offset = (max(page, 1) - 1) * page_size
+        with self.connect() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM segments s JOIN cameras c ON c.id = s.camera_id{where}",
+                params,
+            ).fetchone()[0]
+            rows = conn.execute(
+                f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name
+                   FROM segments s JOIN cameras c ON c.id = s.camera_id{where}
+                   ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?""",
+                (*params, page_size, offset),
+            ).fetchall()
+        items = [dict(row) for row in rows]
+        if shift in {"day", "night"}:
+            items = [
+                item
+                for item in items
+                if shift_for_iso(item.get("start_ts"), tz_name) == shift
+            ]
+        return {"items": items, "total": total, "page": page, "page_size": page_size}
+
     def review_segment(
         self,
         segment_id: int,
@@ -438,6 +675,84 @@ class Database:
                 (days,),
             ).fetchall()
             return [dict(row) for row in rows][::-1]
+
+    def chart_heatmap(self) -> dict[str, Any]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT c.name AS camera_name,
+                          CAST(strftime('%H', s.start_ts) AS INTEGER) AS hour_bucket,
+                          COUNT(*) AS count
+                   FROM segments s JOIN cameras c ON c.id = s.camera_id
+                   GROUP BY c.name, hour_bucket
+                   ORDER BY c.name, hour_bucket"""
+            ).fetchall()
+        return {"rows": [dict(row) for row in rows]}
+
+    def chart_heatmap_by_group(self) -> dict[str, Any]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT g.group_type, g.name AS group_name,
+                          CAST(strftime('%H', s.start_ts) AS INTEGER) AS hour_bucket,
+                          COUNT(*) AS count
+                   FROM segments s
+                   JOIN camera_groups cg ON cg.camera_id = s.camera_id
+                   JOIN groups g ON g.id = cg.group_id
+                   GROUP BY g.group_type, g.name, hour_bucket
+                   ORDER BY g.group_type, g.name, hour_bucket"""
+            ).fetchall()
+        return {"rows": [dict(row) for row in rows]}
+
+    def chart_shift_summary(self, tz_name: str = "UTC") -> dict[str, Any]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT s.start_ts, s.label, s.confidence, c.name AS camera_name
+                   FROM segments s JOIN cameras c ON c.id = s.camera_id"""
+            ).fetchall()
+        series = {"day": 0, "night": 0}
+        for row in rows:
+            shift = shift_for_iso(row["start_ts"], tz_name)
+            series[shift] += 1
+        return {"series": series}
+
+    def chart_camera_summary(self) -> dict[str, Any]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT c.name AS camera_name, s.label, COUNT(*) AS count
+                   FROM segments s JOIN cameras c ON c.id = s.camera_id
+                   GROUP BY c.name, s.label
+                   ORDER BY c.name, s.label"""
+            ).fetchall()
+        return {"rows": [dict(row) for row in rows]}
+
+    def chart_job_failures(self) -> dict[str, Any]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT substr(COALESCE(j.finished_at, j.started_at, j.created_at), 1, 10) AS day,
+                          COUNT(*) AS failures
+                   FROM jobs j
+                   WHERE j.status = 'failed'
+                   GROUP BY substr(COALESCE(j.finished_at, j.started_at, j.created_at), 1, 10)
+                   ORDER BY day"""
+            ).fetchall()
+        return {"rows": [dict(row) for row in rows]}
+
+    def chart_confidence_distribution(self) -> dict[str, Any]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT
+                        CASE
+                          WHEN confidence < 0.2 THEN '0.0-0.2'
+                          WHEN confidence < 0.4 THEN '0.2-0.4'
+                          WHEN confidence < 0.6 THEN '0.4-0.6'
+                          WHEN confidence < 0.8 THEN '0.6-0.8'
+                          ELSE '0.8-1.0'
+                        END AS bucket,
+                        COUNT(*) AS count
+                   FROM segments
+                   GROUP BY bucket
+                   ORDER BY bucket"""
+            ).fetchall()
+        return {"rows": [dict(row) for row in rows]}
 
     def camera_health(self, camera_id: int) -> dict[str, Any] | None:
         camera = self.get_camera(camera_id)

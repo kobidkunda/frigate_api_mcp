@@ -12,13 +12,23 @@ logger = setup_logging()
 
 DEFAULT_PROMPT = (
     "You are classifying a factory camera image. "
-    "Return JSON only with keys label, confidence, notes. "
-    "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect. "
+    "Return JSON only with keys label, confidence, notes, boxes. "
+    "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
     "Base your answer only on visible evidence. "
-    "Confidence must be a number from 0 to 1."
+    "Confidence must be a number from 0 to 1. "
+    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1."
 )
 
-VALID_LABELS = {"working", "idle", "sleeping", "uncertain", "stopped", "sleep-suspect"}
+VALID_LABELS = {
+    "working",
+    "idle",
+    "sleeping",
+    "uncertain",
+    "stopped",
+    "sleep-suspect",
+    "timepass",
+    "operator_missing",
+}
 
 
 class OllamaClient:
@@ -71,44 +81,61 @@ class OllamaClient:
             data = r.json()
         content = (((data.get("message") or {}).get("content")) or "").strip()
         if not content:
-            return {"label": "uncertain", "confidence": 0.0, "notes": "Empty response"}
+            raise RuntimeError(f"Model {self.model} returned empty response")
         try:
             parsed = json.loads(content)
             label = parsed.get("label", "uncertain")
             confidence = parsed.get("confidence", 0.0)
             if label not in VALID_LABELS:
-                return {
-                    "label": "uncertain",
-                    "confidence": 0.0,
-                    "notes": f"Invalid label: {label}",
-                    "raw": data,
-                }
+                raise RuntimeError(
+                    f"Model {self.model} returned invalid label: {label}"
+                )
             try:
                 confidence = float(confidence)
             except (TypeError, ValueError):
-                return {
-                    "label": "uncertain",
-                    "confidence": 0.0,
-                    "notes": f"Invalid confidence: {confidence}",
-                    "raw": data,
-                }
+                raise RuntimeError(
+                    f"Model {self.model} returned invalid confidence: {confidence}"
+                )
             if not (0.0 <= confidence <= 1.0):
-                return {
-                    "label": "uncertain",
-                    "confidence": 0.0,
-                    "notes": f"Confidence out of range: {confidence}",
-                    "raw": data,
-                }
+                raise RuntimeError(
+                    f"Model {self.model} returned confidence out of range: {confidence}"
+                )
+            boxes = parsed.get("boxes")
+            if not isinstance(boxes, list):
+                raise RuntimeError(f"Model {self.model} returned invalid boxes payload")
+            for item in boxes:
+                if not isinstance(item, dict):
+                    raise RuntimeError(
+                        f"Model {self.model} returned non-object box entry"
+                    )
+                if item.get("label") != "person":
+                    raise RuntimeError(
+                        f"Model {self.model} returned non-person box label: {item.get('label')}"
+                    )
+                box = item.get("box")
+                if not isinstance(box, list) or len(box) != 4:
+                    raise RuntimeError(
+                        f"Model {self.model} returned invalid box coordinates"
+                    )
+                for value in box:
+                    try:
+                        num = float(value)
+                    except (TypeError, ValueError) as exc:
+                        raise RuntimeError(
+                            f"Model {self.model} returned non-numeric box coordinate"
+                        ) from exc
+                    if not (0.0 <= num <= 1.0):
+                        raise RuntimeError(
+                            f"Model {self.model} returned box coordinate out of range: {num}"
+                        )
             return {
                 "label": label,
                 "confidence": confidence,
                 "notes": parsed.get("notes", ""),
+                "boxes": boxes,
                 "raw": data,
             }
-        except Exception:
-            return {
-                "label": "uncertain",
-                "confidence": 0.0,
-                "notes": content,
-                "raw": data,
-            }
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"Model {self.model} did not return JSON: {content[:300]}"
+            ) from exc

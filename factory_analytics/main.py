@@ -66,6 +66,15 @@ class CameraTestPayload(BaseModel):
     frigate_name: str | None = None
 
 
+class GroupCreate(BaseModel):
+    group_type: str
+    name: str
+
+
+class GroupCameraPayload(BaseModel):
+    camera_id: int
+
+
 @app.on_event("startup")
 def startup_event():
     worker.start()
@@ -109,6 +118,16 @@ def logs_page(request: Request):
     return templates.TemplateResponse("logs.html", {"request": request})
 
 
+@app.get("/processed-events", response_class=HTMLResponse)
+def processed_events_page(request: Request):
+    return templates.TemplateResponse("processed_events.html", {"request": request})
+
+
+@app.get("/charts", response_class=HTMLResponse)
+def charts_page(request: Request):
+    return templates.TemplateResponse("charts.html", {"request": request})
+
+
 @app.get("/api/health")
 def api_health():
     return service.system_health()
@@ -145,6 +164,12 @@ def put_settings(payload: SettingsUpdate):
     return service.update_settings(payload.values)
 
 
+@app.post("/api/settings/ollama/test")
+def test_ollama_settings():
+    result = service.test_ollama_vision()
+    return result
+
+
 @app.get("/api/frigate/cameras/sync")
 def sync_cameras():
     return service.sync_cameras_from_frigate()
@@ -158,6 +183,47 @@ def frigate_cameras():
 @app.get("/api/cameras")
 def list_cameras():
     return service.list_cameras()
+
+
+@app.get("/api/groups")
+def list_groups():
+    return service.list_groups()
+
+
+@app.post("/api/groups")
+def create_group(payload: GroupCreate):
+    return service.create_group(payload.group_type, payload.name)
+
+
+@app.post("/api/groups/{group_id}/cameras")
+def add_camera_to_group(group_id: int, payload: GroupCameraPayload):
+    result = service.add_camera_to_group(group_id, payload.camera_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Group or camera not found")
+    return result
+
+
+@app.delete("/api/groups/{group_id}/cameras/{camera_id}")
+def remove_camera_from_group(group_id: int, camera_id: int):
+    return service.remove_camera_from_group(group_id, camera_id)
+
+
+@app.get("/api/cameras/{camera_id}/groups")
+def list_camera_groups(camera_id: int):
+    return service.camera_groups(camera_id)
+
+
+@app.get("/api/groups/{group_id}/cameras")
+def list_group_cameras(group_id: int):
+    return service.group_cameras(group_id)
+
+
+@app.post("/api/groups/{group_id}/run")
+def run_group_analysis(group_id: int):
+    try:
+        return service.queue_group_analysis(group_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/cameras")
@@ -243,6 +309,33 @@ def list_jobs(status: str | None = None, camera_id: int | None = None):
     return service.jobs(status=status, camera_id=camera_id)
 
 
+@app.get("/api/processed-events/jobs")
+def processed_jobs(
+    page: int = 1,
+    page_size: int = 25,
+    status: str | None = None,
+    camera_id: int | None = None,
+    group_id: int | None = None,
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+    shift: str | None = None,
+    sort_by: str = "time",
+    sort_dir: str = "desc",
+):
+    return service.jobs_paginated(
+        page,
+        page_size,
+        status,
+        camera_id,
+        group_id,
+        from_ts,
+        to_ts,
+        shift,
+        sort_by,
+        sort_dir,
+    )
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: int):
     job = service.job(job_id)
@@ -268,6 +361,33 @@ def list_segments(
     )
 
 
+@app.get("/api/processed-events/segments")
+def processed_segments(
+    page: int = 1,
+    page_size: int = 25,
+    camera_id: int | None = None,
+    group_id: int | None = None,
+    label: str | None = None,
+    from_ts: str | None = Query(None, alias="from"),
+    to_ts: str | None = Query(None, alias="to"),
+    shift: str | None = None,
+    sort_by: str = "time",
+    sort_dir: str = "desc",
+):
+    return service.segments_paginated(
+        page,
+        page_size,
+        camera_id,
+        group_id,
+        label,
+        from_ts,
+        to_ts,
+        shift,
+        sort_by,
+        sort_dir,
+    )
+
+
 @app.get("/api/history/segments/{segment_id}")
 def get_segment(segment_id: int):
     segment = service.segment(segment_id)
@@ -289,6 +409,36 @@ def review_segment(segment_id: int, payload: ReviewPayload):
 @app.get("/api/charts/daily")
 def chart_daily(days: int = 7):
     return service.chart_daily(days)
+
+
+@app.get("/api/charts/heatmap")
+def chart_heatmap():
+    return service.chart_heatmap()
+
+
+@app.get("/api/charts/heatmap-by-group")
+def chart_heatmap_by_group():
+    return service.chart_heatmap_by_group()
+
+
+@app.get("/api/charts/shift-summary")
+def chart_shift_summary():
+    return service.chart_shift_summary()
+
+
+@app.get("/api/charts/camera-summary")
+def chart_camera_summary():
+    return service.chart_camera_summary()
+
+
+@app.get("/api/charts/job-failures")
+def chart_job_failures():
+    return service.chart_job_failures()
+
+
+@app.get("/api/charts/confidence-distribution")
+def chart_confidence_distribution():
+    return service.chart_confidence_distribution()
 
 
 @app.get("/api/reports/daily")

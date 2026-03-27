@@ -7,6 +7,8 @@ from typing import Any
 
 from factory_analytics.config import DATA_ROOT
 from factory_analytics.database import Database
+from factory_analytics.image_annotations import draw_person_boxes
+from factory_analytics.image_composition import merge_group_snapshots
 from factory_analytics.integrations.frigate import FrigateClient
 from factory_analytics.integrations.ollama import OllamaClient
 from factory_analytics.logging_setup import setup_logging
@@ -104,6 +106,120 @@ class AnalyticsService:
     def list_cameras(self):
         return self.db.list_cameras()
 
+    def create_group(self, group_type: str, name: str):
+        group = self.db.create_group(group_type, name)
+        self.db.log_audit("api", "group.create", "group", str(group["id"]), group)
+        return group
+
+    def list_groups(self):
+        return self.db.list_groups()
+
+    def add_camera_to_group(self, group_id: int, camera_id: int):
+        group = self.db.get_group(group_id)
+        camera = self.db.get_camera(camera_id)
+        if not group or not camera:
+            return None
+        result = self.db.add_camera_to_group(camera_id, group_id)
+        self.db.log_audit(
+            "api",
+            "group.camera.add",
+            "group",
+            str(group_id),
+            {"camera_id": camera_id},
+        )
+        return result
+
+    def remove_camera_from_group(self, group_id: int, camera_id: int):
+        result = self.db.remove_camera_from_group(camera_id, group_id)
+        self.db.log_audit(
+            "api",
+            "group.camera.remove",
+            "group",
+            str(group_id),
+            {"camera_id": camera_id, "deleted": result.get("deleted")},
+        )
+        return result
+
+    def camera_groups(self, camera_id: int):
+        return self.db.list_camera_groups(camera_id)
+
+    def group_cameras(self, group_id: int):
+        return self.db.list_group_cameras(group_id)
+
+    def queue_group_analysis(self, group_id: int):
+        group = self.db.get_group(group_id)
+        cameras = self.db.list_group_cameras(group_id)
+        if not group:
+            raise RuntimeError("Group not found")
+        if not cameras:
+            raise RuntimeError("Group has no cameras")
+        snapshots = []
+        for camera in cameras:
+            snapshots.append(
+                (
+                    camera["frigate_name"],
+                    self._capture_snapshot(camera["frigate_name"]),
+                )
+            )
+        composite = self._group_composite_path(group["group_type"], group["name"])
+        composite = merge_group_snapshots(snapshots, composite)
+        result = self.ollama_client().classify_image(composite)
+        annotated = self._group_annotated_path(group["group_type"], group["name"])
+        draw_person_boxes(composite, annotated, result.get("boxes", []))
+        return {
+            "ok": True,
+            "group": group,
+            "camera_count": len(cameras),
+            "label": result["label"],
+            "confidence": result["confidence"],
+            "evidence_path": str(annotated.relative_to(DATA_ROOT.parent)),
+        }
+
+    def test_ollama_vision(self):
+        settings = self.settings()
+        health = self.ollama_client().health()
+        if not health.get("ok"):
+            return {
+                "ok": False,
+                "message": f"Ollama health failed: {health.get('message', 'unknown error')}",
+            }
+        model = settings.get("ollama_vision_model")
+        models = set(health.get("models") or [])
+        if model not in models:
+            return {
+                "ok": False,
+                "message": f"Configured model not available: {model}",
+                "model": model,
+            }
+        cameras = [c for c in self.db.list_cameras() if c.get("enabled")]
+        if not cameras:
+            cameras = self.db.list_cameras()
+        if not cameras:
+            return {
+                "ok": False,
+                "message": "No cameras available for vision test",
+                "model": model,
+            }
+        camera = cameras[0]
+        try:
+            snapshot_path = self._capture_snapshot(camera["frigate_name"])
+            result = self.ollama_client().classify_image(snapshot_path)
+            return {
+                "ok": True,
+                "message": "Vision test passed",
+                "model": model,
+                "camera": camera["frigate_name"],
+                "label": result.get("label"),
+                "confidence": result.get("confidence", 0.0),
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "message": str(exc),
+                "model": model,
+                "camera": camera["frigate_name"],
+            }
+
     def update_camera(self, camera_id: int, payload: dict[str, Any]):
         camera = self.db.update_camera(camera_id, payload)
         self.db.log_audit("api", "camera.update", "camera", str(camera_id), payload)
@@ -159,16 +275,18 @@ class AnalyticsService:
         try:
             snapshot_path = self._capture_snapshot(camera["frigate_name"])
             result = self.ollama_client().classify_image(snapshot_path)
+            annotated_path = self._annotated_snapshot_path(camera["frigate_name"])
+            draw_person_boxes(snapshot_path, annotated_path, result.get("boxes", []))
             start_ts, end_ts = self._resolve_job_window(job, camera, settings)
             segment = self.db.create_segment(
                 job_id=job["id"],
                 camera_id=camera["id"],
                 start_ts=start_ts,
                 end_ts=end_ts,
-                label=result.get("label", "uncertain"),
-                confidence=float(result.get("confidence", 0.0)),
+                label=result["label"],
+                confidence=float(result["confidence"]),
                 notes=result.get("notes", ""),
-                evidence_path=str(snapshot_path.relative_to(DATA_ROOT.parent)),
+                evidence_path=str(annotated_path.relative_to(DATA_ROOT.parent)),
             )
             day = start_ts[:10]
             seconds = max(
@@ -192,7 +310,7 @@ class AnalyticsService:
                 job["id"],
                 "success",
                 raw_result=result,
-                snapshot_path=str(snapshot_path.relative_to(DATA_ROOT.parent)),
+                snapshot_path=str(annotated_path.relative_to(DATA_ROOT.parent)),
             )
             return {"job": self.db.get_job(job["id"]), "segment": segment}
         except Exception as exc:
@@ -223,8 +341,8 @@ class AnalyticsService:
             result = self.ollama_client().classify_image(snapshot_path)
             return {
                 "ok": True,
-                "label": result.get("label", "uncertain"),
-                "confidence": float(result.get("confidence", 0.0)),
+                "label": result["label"],
+                "confidence": float(result["confidence"]),
             }
         except Exception as exc:
             logger.exception("Probe analysis failed")
@@ -250,6 +368,25 @@ class AnalyticsService:
         dest = DATA_ROOT / "evidence" / "snapshots" / f"{camera_name}_{stamp}.jpg"
         return self.frigate_client().fetch_latest_snapshot(camera_name, dest)
 
+    def _annotated_snapshot_path(self, camera_name: str) -> Path:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        return (
+            DATA_ROOT
+            / "evidence"
+            / "snapshots"
+            / f"{camera_name}_{stamp}_annotated.jpg"
+        )
+
+    def _group_composite_path(self, group_type: str, group_name: str) -> Path:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        slug = f"{group_type}_{group_name}".replace(" ", "_").replace("/", "_")
+        return DATA_ROOT / "evidence" / "groups" / f"{slug}_{stamp}.jpg"
+
+    def _group_annotated_path(self, group_type: str, group_name: str) -> Path:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        slug = f"{group_type}_{group_name}".replace(" ", "_").replace("/", "_")
+        return DATA_ROOT / "evidence" / "groups" / f"{slug}_{stamp}_annotated.jpg"
+
     def camera_health(self, camera_id: int):
         return self.db.camera_health(camera_id)
 
@@ -258,6 +395,34 @@ class AnalyticsService:
 
     def jobs(self, status: str | None = None, camera_id: int | None = None):
         return self.db.list_jobs(status=status, camera_id=camera_id)
+
+    def jobs_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 25,
+        status: str | None = None,
+        camera_id: int | None = None,
+        group_id: int | None = None,
+        from_ts: str | None = None,
+        to_ts: str | None = None,
+        shift: str | None = None,
+        sort_by: str = "id",
+        sort_dir: str = "desc",
+    ):
+        tz_name = self.settings().get("timezone") or "UTC"
+        return self.db.list_jobs_paginated(
+            page,
+            page_size,
+            status,
+            camera_id,
+            from_ts,
+            to_ts,
+            shift,
+            sort_by,
+            sort_dir,
+            tz_name,
+            group_id,
+        )
 
     def job(self, job_id: int):
         return self.db.get_job(job_id)
@@ -276,6 +441,34 @@ class AnalyticsService:
             from_ts=from_ts,
             to_ts=to_ts,
             min_confidence=min_confidence,
+        )
+
+    def segments_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 25,
+        camera_id: int | None = None,
+        group_id: int | None = None,
+        label: str | None = None,
+        from_ts: str | None = None,
+        to_ts: str | None = None,
+        shift: str | None = None,
+        sort_by: str = "id",
+        sort_dir: str = "desc",
+    ):
+        tz_name = self.settings().get("timezone") or "UTC"
+        return self.db.list_segments_paginated(
+            page,
+            page_size,
+            camera_id,
+            label,
+            from_ts,
+            to_ts,
+            shift,
+            sort_by,
+            sort_dir,
+            tz_name,
+            group_id,
         )
 
     def segment(self, segment_id: int):
@@ -302,6 +495,25 @@ class AnalyticsService:
 
     def chart_daily(self, days: int = 7):
         return self.db.chart_daily(days)
+
+    def chart_heatmap(self):
+        return self.db.chart_heatmap()
+
+    def chart_heatmap_by_group(self):
+        return self.db.chart_heatmap_by_group()
+
+    def chart_shift_summary(self):
+        tz_name = self.settings().get("timezone") or "UTC"
+        return self.db.chart_shift_summary(tz_name)
+
+    def chart_camera_summary(self):
+        return self.db.chart_camera_summary()
+
+    def chart_job_failures(self):
+        return self.db.chart_job_failures()
+
+    def chart_confidence_distribution(self):
+        return self.db.chart_confidence_distribution()
 
     def report_daily(self, day: str):
         day = day or datetime.now(timezone.utc).date().isoformat()
