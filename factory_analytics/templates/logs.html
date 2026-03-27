@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Analytics - Logs</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav-bar">
+    <div class="nav-brand">Factory Analytics</div>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <a href="/history">History</a>
+      <a href="/logs" class="nav-active">Logs</a>
+    </div>
+  </nav>
+  <main>
+    <section class="card span-2">
+      <div class="inline-actions">
+        <button onclick="loadLog('api')">API Logs</button>
+        <button onclick="loadLog('worker')">Worker Logs</button>
+        <button onclick="loadLog('mcp')">MCP Logs</button>
+        <button onclick="refreshLog()">Refresh</button>
+        <label><input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" /> Auto-refresh</label>
+      </div>
+      <pre id="logView" class="log-output"></pre>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script>
+    let currentLog = 'api';
+    let autoRefreshInterval = null;
+    async function loadLog(name) {
+      currentLog = name;
+      const data = await fetch('/api/logs/tail?name=' + name + '&lines=100').then(r => r.json());
+      document.getElementById('logView').textContent = data.content || '';
+      document.getElementById('logView').scrollTop = document.getElementById('logView').scrollHeight;
+    }
+    function refreshLog() { loadLog(currentLog); }
+    function toggleAutoRefresh() {
+      if (document.getElementById('autoRefresh').checked) {
+        autoRefreshInterval = setInterval(refreshLog, 3000);
+      } else {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+      }
+    }
+    document.addEventListener('DOMContentLoaded', () => loadLog('api'));
+  </script>
+</body>
+</html>

@@ -42,7 +42,7 @@ Open:
 
 ## Process control
 ```bash
-./factory-analytics.sh start
+./factory-analytics.sh start, debug
 ./factory-analytics.sh stop
 ./factory-analytics.sh restart
 ./factory-analytics.sh status

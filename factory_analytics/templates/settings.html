@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Analytics - Settings</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav-bar">
+    <div class="nav-brand">Factory Analytics</div>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/settings" class="nav-active">Settings</a>
+      <a href="/history">History</a>
+      <a href="/logs">Logs</a>
+    </div>
+  </nav>
+  <main>
+    <section class="card">
+      <h2>Settings</h2>
+      <form id="settingsForm" class="stack">
+        <fieldset>
+          <legend>Frigate Configuration</legend>
+          <label>Frigate URL <input name="frigate_url" placeholder="https://frigate.local:8971" /></label>
+          <label>Auth Mode <select name="frigate_auth_mode">
+            <option value="none">None</option>
+            <option value="basic">Basic Auth</option>
+            <option value="bearer">Bearer Token</option>
+          </select></label>
+          <label>Username <input name="frigate_username" /></label>
+          <label>Password <input name="frigate_password" type="password" /></label>
+          <label>Bearer Token <input name="frigate_bearer_token" type="password" /></label>
+          <label>Verify TLS <select name="frigate_verify_tls">
+            <option value="false">false</option>
+            <option value="true">true</option>
+          </select></label>
+        </fieldset>
+        <fieldset>
+          <legend>Ollama Configuration</legend>
+          <label>Ollama URL <input name="ollama_url" placeholder="http://localhost:11434/api" /></label>
+          <label>Vision Model <input name="ollama_vision_model" placeholder="qwen2.5-vl:7b" /></label>
+          <label>Timeout (sec) <input name="ollama_timeout_sec" type="number" min="10" /></label>
+        </fieldset>
+        <fieldset>
+          <legend>Analysis Settings</legend>
+          <label>Analysis Interval (sec) <input name="analysis_interval_seconds" type="number" min="30" /></label>
+          <label>Scheduler Enabled <select name="scheduler_enabled">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select></label>
+        </fieldset>
+        <fieldset>
+          <legend>General</legend>
+          <label>Timezone <input name="timezone" placeholder="Asia/Kolkata" /></label>
+        </fieldset>
+        <button type="submit">Save Settings</button>
+      </form>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script>document.getElementById('settingsForm').addEventListener('submit', async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); const values = Object.fromEntries(fd.entries()); values.frigate_verify_tls = values.frigate_verify_tls === 'true'; values.scheduler_enabled = values.scheduler_enabled === 'true'; values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }) }); alert('Settings saved'); });</script>
+  <script>document.addEventListener('DOMContentLoaded', async () => { const data = await fetch('/api/settings').then(r => r.json()); const form = document.getElementById('settingsForm'); Object.entries(data).forEach(([k, v]) => { const field = form.elements.namedItem(k); if (field) field.value = typeof v === 'boolean' ? String(v) : v; }); });</script>
+</body>
+</html>

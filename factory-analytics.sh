@@ -95,6 +95,42 @@ logs_follow() {
   tail -n 100 -f "${LOG_DIR}/api.log" "${LOG_DIR}/mcp.log" "${LOG_DIR}/worker.log"
 }
 
+start_debug() {
+  echo "Starting DEBUG mode with auto-reload..."
+  echo "API: ${APP_HOST}:${APP_PORT}, MCP: ${MCP_HOST}:${MCP_PORT}"
+  echo "Press Ctrl+C to stop"
+  echo "---"
+  cd "${BASE_DIR}" && ./.venv/bin/uvicorn factory_analytics.main:app --host "${APP_HOST}" --port "${APP_PORT}" --reload --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"
+}
+
+start_debug_mcp() {
+  echo "Starting MCP DEBUG mode with auto-reload..."
+  echo "MCP: ${MCP_HOST}:${MCP_PORT}"
+  echo "Press Ctrl+C to stop"
+  echo "---"
+  cd "${BASE_DIR}" && ./.venv/bin/uvicorn factory_analytics.mcp_server:app --host "${MCP_HOST}" --port "${MCP_PORT}" --reload --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"
+}
+
+start_debug_all() {
+  echo "Starting ALL services in DEBUG mode with auto-reload..."
+  echo "API: ${APP_HOST}:${APP_PORT}"
+  echo "MCP: ${MCP_HOST}:${MCP_PORT}"
+  echo "Press Ctrl+C to stop"
+  echo "---"
+  
+  cd "${BASE_DIR}"
+  
+  ./.venv/bin/uvicorn factory_analytics.main:app --host "${APP_HOST}" --port "${APP_PORT}" --reload --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')" >> "${LOG_DIR}/api.log" 2>&1 &
+  API_PID=$!
+  
+  ./.venv/bin/uvicorn factory_analytics.mcp_server:app --host "${MCP_HOST}" --port "${MCP_PORT}" --reload --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')" >> "${LOG_DIR}/mcp.log" 2>&1 &
+  MCP_PID=$!
+  
+  trap "echo 'Stopping...'; kill $API_PID $MCP_PID 2>/dev/null; exit 0" INT TERM
+  
+  wait $API_PID $MCP_PID
+}
+
 main() {
   load_env
   case "${1:-}" in
@@ -119,8 +155,17 @@ main() {
     logs)
       logs_follow
       ;;
+    debug)
+      start_debug_all
+      ;;
+    debug-api)
+      start_debug
+      ;;
+    debug-mcp)
+      start_debug_mcp
+      ;;
     *)
-      echo "Usage: $0 {start|stop|restart|status|logs}"
+      echo "Usage: $0 {start|stop|restart|status|logs|debug|debug-api|debug-mcp}"
       exit 1
       ;;
   esac

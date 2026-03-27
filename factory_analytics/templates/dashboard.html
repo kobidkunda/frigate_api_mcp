@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Analytics - Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav-bar">
+    <div class="nav-brand">Factory Analytics</div>
+    <div class="nav-links">
+      <a href="/dashboard" class="nav-active">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <a href="/history">History</a>
+      <a href="/logs">Logs</a>
+    </div>
+  </nav>
+  <main class="grid">
+    <section class="card span-2">
+      <h2>System Health</h2>
+      <div id="healthCards" class="cards"></div>
+    </section>
+    <section class="card span-2"><h2>Cameras</h2><div id="cameraTable"></div></section>
+    <section class="card"><h2>Daily Chart</h2><canvas id="chartCanvas" width="600" height="240"></canvas></section>
+    <section class="card"><h2>Daily Report</h2><div id="reportView" class="report"></div></section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => { loadHealth(); loadCameras(); loadChart(); loadReport(); });</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factory Analytics - History</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <nav class="nav-bar">
+    <div class="nav-brand">Factory Analytics</div>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <a href="/history" class="nav-active">History</a>
+      <a href="/logs">Logs</a>
+    </div>
+  </nav>
+  <main>
+    <section class="card span-2">
+      <h2>Filters</h2>
+      <form id="filterForm" class="inline-form">
+        <label>Camera
+          <select name="camera_id"><option value="">All Cameras</option></select>
+        </label>
+        <label>Label
+          <select name="label">
+            <option value="">All Labels</option>
+            <option value="working">Working</option>
+            <option value="idle">Idle</option>
+            <option value="sleeping">Sleeping</option>
+            <option value="stopped">Stopped</option>
+            <option value="uncertain">Uncertain</option>
+          </select>
+        </label>
+        <label>From <input name="from" type="date" /></label>
+        <label>To <input name="to" type="date" /></label>
+        <label>Min Confidence <input name="min_confidence" type="number" step="0.1" min="0" max="1" placeholder="0" /></label>
+        <button type="submit">Apply Filters</button>
+        <button type="button" onclick="clearFilters()">Clear</button>
+      </form>
+    </section>
+    <section class="card span-2">
+      <h2>Segments</h2>
+      <div id="segmentsTable"></div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <script>
+    async function loadFilterOptions() {
+      const cameras = await fetch('/api/cameras').then(r => r.json());
+      const select = document.querySelector('#filterForm select[name="camera_id"]');
+      cameras.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name || c.frigate_name;
+        select.appendChild(opt);
+      });
+    }
+    async function loadSegments() {
+      const params = new URLSearchParams();
+      const form = document.getElementById('filterForm');
+      const fd = new FormData(form);
+      fd.forEach((v, k) => { if (v) params.append(k, v); });
+      const url = '/api/history/segments?' + params.toString();
+      const segments = await fetch(url).then(r => r.json());
+      const el = document.getElementById('segmentsTable');
+      el.innerHTML = segments.length ? `<table><thead><tr><th>ID</th><th>Camera</th><th>Label</th><th>Confidence</th><th>Start</th><th>End</th><th>Evidence</th><th>Review</th></tr></thead><tbody>${segments.map(s => `<tr><td>${s.id}</td><td>${s.camera_name}</td><td>${s.reviewed_label || s.label}</td><td>${Number(s.confidence || 0).toFixed(2)}</td><td>${s.start_ts?.slice(0,16) || ''}</td><td>${s.end_ts?.slice(0,16) || ''}</td><td>${s.evidence_path ? '<a href="/' + s.evidence_path + '" target="_blank">view</a>' : ''}</td><td><button class="small" onclick="reviewSegment(${s.id}, 'working')">W</button><button class="small" onclick="reviewSegment(${s.id}, 'idle')">I</button><button class="small" onclick="reviewSegment(${s.id}, 'sleeping')">S</button></td></tr>`).join('')}</tbody></table>` : '<p>No segments found</p>';
+    }
+    async function reviewSegment(id, label) {
+      await fetch('/api/review/' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reviewed_label: label, review_note: 'reviewed from GUI' }) });
+      loadSegments();
+    }
+    function clearFilters() {
+      document.getElementById('filterForm').reset();
+      loadSegments();
+    }
+    document.getElementById('filterForm').addEventListener('submit', (ev) => { ev.preventDefault(); loadSegments(); });
+    document.addEventListener('DOMContentLoaded', () => { loadFilterOptions(); loadSegments(); });
+  </script>
+</body>
+</html>
