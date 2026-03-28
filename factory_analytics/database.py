@@ -644,6 +644,7 @@ class Database:
     def list_segments(
         self,
         limit: int = 200,
+        offset: int = 0,
         camera_id: int | None = None,
         label: str | None = None,
         from_ts: str | None = None,
@@ -674,8 +675,8 @@ class Database:
                           j.job_type, j.raw_result, j.payload_json
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
-                   JOIN jobs j ON j.id = s.job_id{where} ORDER BY s.id DESC LIMIT ?""",
-                (*params, limit),
+                   JOIN jobs j ON j.id = s.job_id{where} ORDER BY s.id DESC LIMIT ? OFFSET ?""",
+                (*params, limit, offset),
             ).fetchall()
             items = []
             for row in rows:

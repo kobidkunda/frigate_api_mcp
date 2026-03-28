@@ -18,28 +18,135 @@ async function testOllamaVision(){
     if(out) out.textContent = `Failed: ${err.message || String(err)}`;
   }
 }
-async function loadHealth(){ const data=await api('/api/health'); const el=document.getElementById('healthCards'); if(!el) return; const cards=[ ['App', true, 'running'], ['Database', data.database.ok, data.database.message], ['Frigate', data.frigate.ok, data.frigate.version || data.frigate.message || ''], ['Ollama', data.ollama.ok, (data.ollama.models || []).join(', ') || data.ollama.message || ''] ]; el.innerHTML = cards.map(([name,ok,msg]) => `<div class="status-card"><div>${name}</div><div class="${ok?'ok':'bad'}">${ok?'Healthy':'Issue'}</div><div class="small">${msg || ''}</div></div>`).join(''); }
-async function syncCameras(){ await api('/api/frigate/cameras/sync'); await loadCameras(); }
-async function loadCameras(){ const cameras=await api('/api/cameras'); const el=document.getElementById('cameraTable'); if(!el) return; const addForm = `<div class="add-camera">
-  <div class="inline-actions">
-    <select id="frigate-camera-select"><option value="">Loading…</option></select>
-    <input id="frigate-manual" placeholder="Manual Frigate Name (optional)" />
-    <input id="camera-display-name" placeholder="Display Name (optional)" />
-    <input id="camera-interval-new" type="number" min="30" value="300" />
-    <label><input id="camera-enabled-new" type="checkbox" checked /> Enabled</label>
-    <label><span>Vision Inference</span>
-      <select id="ollama-enabled-select"><option value="true">Enabled</option><option value="false">Disabled</option></select>
-    </label>
-    <button class="secondary" onclick="testNewCamera()">Test</button>
-    <button onclick="addCamera()">Add Camera</button>
-  </div>
-  <div class="small">Use Test to verify connectivity before saving</div>
-  <div id="new-camera-test-status" class="small"></div>
-</div>`;
-  el.innerHTML = addForm + `<table><thead><tr><th>ID</th><th>Name</th><th>Frigate Name</th><th>Enabled</th><th>Interval</th><th>Status</th><th>Actions</th></tr></thead><tbody>${cameras.map(c=>`<tr><td>${c.id}</td><td><input value="${c.name}" id="camera-name-${c.id}" /></td><td>${c.frigate_name}</td><td><input type="checkbox" ${c.enabled ? 'checked' : ''} id="camera-enabled-${c.id}" /></td><td><input type="number" min="30" value="${c.interval_seconds}" id="camera-interval-${c.id}" /></td><td>${c.last_status || ''}<div class="small">${fmtTs(c.last_run_at)}</div><div id="camera-test-status-${c.id}" class="small"></div></td><td class="inline-actions"><button onclick="saveCamera(${c.id})">Save Camera</button><button class="secondary" onclick="testCameraRow(${c.id})">Test</button><button class="danger" onclick="deleteCamera(${c.id})">Delete</button></td></tr>`).join('')}</tbody></table>`;
-  try{ const data = await api('/api/frigate/cameras'); const sel=document.getElementById('frigate-camera-select'); sel.innerHTML = `<option value="">Select Frigate Camera</option>` + (data.cameras||[]).map(n=>`<option value="${n}">${n}</option>`).join(''); }catch(_){ const sel=document.getElementById('frigate-camera-select'); if(sel) sel.innerHTML = `<option value="">(Frigate unavailable)</option>`; }
+async function loadHealth(){ 
+  const data=await api('/api/health'); 
+  const el=document.getElementById('healthCards'); 
+  if(!el) return; 
+  const cards=[ 
+    ['Application', data.database.ok, data.database.message, 'settings_applications'], 
+    ['Database', data.database.ok, data.database.message, 'database'], 
+    ['Frigate', data.frigate.ok, data.frigate.version || data.frigate.message || '', 'videocam'], 
+    ['Ollama', data.ollama.ok, (data.ollama.models || []).join(', ') || data.ollama.message || '', 'psychology'] 
+  ]; 
+  el.innerHTML = cards.map(([name,ok,msg,icon]) => `
+    <div class="bg-surface-container p-3 flex flex-col items-center justify-center gap-1 rounded-lg">
+      <div class="w-2 h-2 rounded-full ${ok?'bg-tertiary shadow-[0_0_8px_#00e475]':'bg-error animate-pulse shadow-[0_0_8px_#ffb4ab]'}"></div>
+      <span class="font-label text-[10px] text-outline uppercase">${name}</span>
+      <span class="font-headline font-bold text-sm ${ok?'':'text-error'}">${ok?'Healthy':'Issue'}</span>
+      <div class="text-[8px] text-outline truncate w-full text-center" title="${msg}">${msg || ''}</div>
+    </div>`).join(''); 
 }
-async function loadGroups(){ const el=document.getElementById('groupTable'); if(!el) return; let groups, cameras; try { groups = await api('/api/groups'); cameras = await api('/api/cameras'); } catch(e) { el.innerHTML = '<div class="error">Failed to load groups</div>'; return; } const options = cameras.map(c=>`<option value="${c.id}">${c.name}</option>`).join(''); el.innerHTML = `<div class="add-group"><div class="inline-actions"><input id="group-type" placeholder="machine or room" /><input id="group-name" placeholder="Group name" /><input id="group-interval" placeholder="Interval (s)" value="300" /><button onclick="addGroup()">Add Group</button></div></div><table><thead><tr><th>ID</th><th>Type</th><th>Name</th><th>Interval (s)</th><th>Cameras</th><th>Actions</th></tr></thead><tbody>${groups.map(g=>`<tr><td>${g.id}</td><td>${g.group_type}</td><td>${g.name}</td><td><input id="interval-${g.id}" value="${g.interval_seconds || 300}" onchange="updateGroupInterval(${g.id})" /></td><td><select id="group-camera-${g.id}">${options}</select></td><td class="inline-actions"><button onclick="addCameraToGroup(${g.id})">Add Camera</button><button class="secondary" onclick="runGroup(${g.id})">Run Group</button></td></tr>`).join('')}</tbody></table>`; }
+async function syncCameras(){ await api('/api/frigate/cameras/sync'); await loadCameras(); }
+async function loadCameras(){ 
+  const cameras=await api('/api/cameras'); 
+  const el=document.getElementById('cameraTable'); 
+  if(!el) return; 
+  el.innerHTML = `
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-surface-container-high/30">
+            <th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">ID</th>
+            <th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Name</th>
+            <th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Source</th>
+            <th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest text-center">State</th>
+            <th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest text-center">Interval</th>
+            <th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Status</th>
+            <th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-outline-variant/10">
+          ${cameras.map(c=>`
+            <tr class="hover:bg-surface-container transition-colors group">
+              <td class="p-4 text-xs font-label text-primary">#${c.id}</td>
+              <td class="p-4">
+                <input value="${c.name}" id="camera-name-${c.id}" class="bg-surface-container-lowest border-none text-sm p-1.5 rounded focus:ring-1 focus:ring-primary w-full font-semibold" />
+              </td>
+              <td class="p-4 text-xs font-label text-outline truncate max-w-[120px]" title="${c.frigate_name}">${c.frigate_name}</td>
+              <td class="p-4 text-center">
+                <label class="relative inline-flex items-center cursor-pointer justify-center">
+                  <input type="checkbox" ${c.enabled ? 'checked' : ''} id="camera-enabled-${c.id}" class="sr-only peer">
+                  <div class="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </td>
+              <td class="p-4">
+                <input type="number" min="30" value="${c.interval_seconds}" id="camera-interval-${c.id}" class="bg-surface-container-lowest border-none text-xs w-16 px-2 py-1 text-center rounded mx-auto block" />
+              </td>
+              <td class="p-4">
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full ${c.last_status === 'ok' ? 'bg-tertiary' : 'bg-error'}"></span>
+                    <span class="text-[10px] uppercase font-bold ${c.last_status === 'ok' ? 'text-tertiary' : 'text-error'}">${c.last_status || 'Never Run'}</span>
+                  </div>
+                  <div class="text-[9px] text-outline font-label">${fmtTs(c.last_run_at)}</div>
+                  <div id="camera-test-status-${c.id}" class="text-[9px] italic text-primary"></div>
+                </div>
+              </td>
+              <td class="p-4 text-right">
+                <div class="flex justify-end gap-1">
+                  <button onclick="saveCamera(${c.id})" class="text-primary p-1.5 hover:bg-surface-bright rounded transition-colors" title="Save">
+                    <span class="material-symbols-outlined text-sm">save</span>
+                  </button>
+                  <button onclick="testCameraRow(${c.id})" class="text-outline p-1.5 hover:bg-surface-bright rounded transition-colors" title="Test">
+                    <span class="material-symbols-outlined text-sm">analytics</span>
+                  </button>
+                  <button onclick="deleteCamera(${c.id})" class="text-error/60 p-1.5 hover:bg-error-container/20 rounded transition-colors" title="Delete">
+                    <span class="material-symbols-outlined text-sm">delete</span>
+                  </button>
+                </div>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  
+  try{ 
+    const data = await api('/api/frigate/cameras'); 
+    const sel=document.getElementById('frigate-camera-select'); 
+    if(sel) sel.innerHTML = `<option value="">Select Frigate Camera</option>` + (data.cameras||[]).map(n=>`<option value="${n}">${n}</option>`).join(''); 
+  }catch(_){ 
+    const sel=document.getElementById('frigate-camera-select'); 
+    if(sel) sel.innerHTML = `<option value="">(Frigate unavailable)</option>`; 
+  }
+}
+async function loadGroups(){ 
+  const el=document.getElementById('groupTable'); 
+  if(!el) return; 
+  let groups, cameras; 
+  try { 
+    groups = await api('/api/groups'); 
+    cameras = await api('/api/cameras'); 
+  } catch(e) { 
+    el.innerHTML = '<div class="p-4 text-error font-label text-xs uppercase">Failed to load groups</div>'; 
+    return; 
+  } 
+  const options = cameras.map(c=>`<option value="${c.id}">${c.name || c.frigate_name}</option>`).join(''); 
+  el.innerHTML = groups.map(g=>`
+    <div class="bg-surface-container p-4 flex items-center justify-between group hover:bg-surface-container-highest transition-colors rounded-lg border border-outline-variant/5 mb-3">
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center gap-2">
+          <span class="font-label text-[10px] text-primary uppercase">${g.group_type}</span>
+          <span class="text-[9px] text-outline font-mono">#${g.id}</span>
+        </div>
+        <span class="font-headline font-bold text-sm">${g.name}</span>
+        <div class="flex items-center gap-2 mt-1">
+          <span class="text-[9px] text-outline uppercase font-label">Interval:</span>
+          <input id="interval-${g.id}" value="${g.interval_seconds || 300}" onchange="updateGroupInterval(${g.id})" class="bg-surface-container-lowest border-none text-[9px] w-12 px-1 rounded text-center focus:ring-1 focus:ring-primary" />
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <select id="group-camera-${g.id}" class="bg-surface-container-lowest border-none text-[10px] p-1.5 rounded focus:ring-0 w-32">${options}</select>
+          <button onclick="addCameraToGroup(${g.id})" class="bg-primary/10 text-primary p-1.5 rounded hover:bg-primary/20 transition-colors" title="Add Member">
+            <span class="material-symbols-outlined text-sm">person_add</span>
+          </button>
+        </div>
+        <button onclick="runGroup(${g.id})" class="machined-gradient text-on-primary-fixed p-2 rounded-full hover:scale-110 active:scale-95 transition-all shadow-lg" title="Run Analysis">
+          <span class="material-symbols-outlined text-sm">play_arrow</span>
+        </button>
+      </div>
+    </div>`).join('') || '<div class="p-8 text-center text-outline font-label text-xs uppercase">No groups defined</div>'; 
+}
 async function updateGroupInterval(groupId) {
     const intervalInput = document.getElementById(`interval-${groupId}`);
     const interval = parseInt(intervalInput.value);
@@ -118,7 +225,40 @@ async function loadJobs(){ const jobs=await api('/api/jobs'); const el = documen
 async function loadSegments(){ const segments=await api('/api/history/segments'); const el = document.getElementById('segmentsTable'); if(!el) return; el.innerHTML = `<table><thead><tr><th>ID</th><th>Camera</th><th>Label</th><th>Confidence</th><th>Window</th><th>Evidence</th><th>Review</th></tr></thead><tbody>${segments.map(s=>`<tr><td>${s.id}</td><td>${s.camera_name}</td><td>${s.reviewed_label || s.label}</td><td>${Number(s.confidence || 0).toFixed(2)}</td><td>${fmtTs(s.start_ts)}<div class="small">${fmtTs(s.end_ts)}</div></td><td>${s.evidence_path ? `<img src="/${s.evidence_path}" alt="evidence" loading="lazy" style="max-width:160px;max-height:120px;border:1px solid #222;border-radius:4px" onerror="this.replaceWith(document.createTextNode('no image'))" />` : ''}</td><td><div class="inline-actions"><button class="secondary" onclick="reviewSegment(${s.id}, 'working')">Mark working</button><button class="secondary" onclick="reviewSegment(${s.id}, 'idle')">Mark idle</button><button class="secondary" onclick="reviewSegment(${s.id}, 'sleeping')">Mark sleeping</button></div></td></tr>`).join('')}</tbody></table>`; }
 async function reviewSegment(id,label){ await api(`/api/review/${id}`,{method:'POST',body:JSON.stringify({reviewed_label:label,review_note:'manual review from GUI'})}); await loadSegments(); }
 async function loadChart(){ const rows=await api('/api/charts/daily?days=7'); const canvas=document.getElementById('chartCanvas'); if(!canvas) return; const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); const pad=40; const width=canvas.width - pad*2; const height=canvas.height - pad*2; const values=rows.flatMap(r=>[r.working_seconds,r.idle_seconds,r.sleeping_seconds]); const max=Math.max(1,...values); ctx.strokeStyle='#7082c3'; ctx.beginPath(); ctx.moveTo(pad,pad); ctx.lineTo(pad,pad+height); ctx.lineTo(pad+width,pad+height); ctx.stroke(); const barWidth=width/Math.max(1,rows.length*4); rows.forEach((row,i)=>{ const baseX=pad+i*barWidth*4+barWidth; const bars=[row.working_seconds,row.idle_seconds,row.sleeping_seconds]; const colors=['#3ad48f','#ffcc66','#ff5d73']; bars.forEach((val,idx)=>{ const h=(val/max)*height; ctx.fillStyle=colors[idx]; ctx.fillRect(baseX+idx*barWidth,pad+height-h,barWidth-2,h);}); ctx.fillStyle='#cbd5ff'; ctx.font='10px sans-serif'; ctx.fillText(row.day.slice(5), baseX, pad+height+12); }); }
-async function loadReport(){ const today=new Date().toISOString().slice(0,10); const report=await api(`/api/reports/daily?day=${today}`); const t=report.totals || {}; const el = document.getElementById('reportView'); if(!el) return; el.innerHTML = `<div><strong>Date:</strong> ${report.day}</div><div><strong>Working:</strong> ${fmtSec(t.working_seconds)}</div><div><strong>Idle:</strong> ${fmtSec(t.idle_seconds)}</div><div><strong>Sleeping:</strong> ${fmtSec(t.sleeping_seconds)}</div><div><strong>Uncertain:</strong> ${fmtSec(t.uncertain_seconds)}</div><div><strong>Stopped:</strong> ${fmtSec(t.stopped_seconds)}</div><div class="small">Recent segments: ${(report.recent_segments || []).length}</div>`; }
+async function loadReport(){ 
+  const today=new Date().toISOString().slice(0,10); 
+  const report=await api(`/api/reports/daily?day=${today}`); 
+  const t=report.totals || {}; 
+  const el = document.getElementById('reportView'); 
+  if(!el) return; 
+  el.innerHTML = `
+    <div class="grid grid-cols-2 gap-4 w-full">
+      <div class="p-2 bg-surface-container-low rounded">
+        <span class="block text-[10px] text-tertiary uppercase font-label">Working</span>
+        <span class="text-lg font-headline font-bold">${fmtSec(t.working_seconds)}</span>
+      </div>
+      <div class="p-2 bg-surface-container-low rounded">
+        <span class="block text-[10px] text-outline uppercase font-label">Idle</span>
+        <span class="text-lg font-headline font-bold">${fmtSec(t.idle_seconds)}</span>
+      </div>
+      <div class="p-2 bg-surface-container-low rounded">
+        <span class="block text-[10px] text-secondary uppercase font-label">Sleeping</span>
+        <span class="text-lg font-headline font-bold">${fmtSec(t.sleeping_seconds)}</span>
+      </div>
+      <div class="p-2 bg-surface-container-low rounded">
+        <span class="block text-[10px] text-error uppercase font-label">Stopped</span>
+        <span class="text-lg font-headline font-bold">${fmtSec(t.stopped_seconds || t.uncertain_seconds)}</span>
+      </div>
+    </div>
+    <div class="mt-4 pt-2 border-t border-outline-variant/10">
+      <span class="block text-[10px] text-outline uppercase font-label mb-2">Segment Velocity</span>
+      <div class="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden">
+        <div class="bg-primary h-full" style="width: ${Math.min(100, (report.recent_segments?.length || 0) * 5)}%;"></div>
+      </div>
+      <div class="text-[8px] text-outline mt-1 uppercase font-label">${(report.recent_segments || []).length} active events detected</div>
+    </div>
+  `; 
+}
 async function loadLog(name){ const data=await api(`/api/logs/tail?name=${name}`); const el = document.getElementById('logView'); if(!el) return; el.textContent = data.content || ''; }
 function el(id){ return document.getElementById(id); }
 async function refreshAll(){

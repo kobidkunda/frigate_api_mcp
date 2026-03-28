@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Factory Analytics | Industrial Sentinel</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Space+Grotesk:wght@400;500;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-tertiary": "#003918",
+                        "surface-container-lowest": "#0b0e14",
+                        "on-surface": "#e1e2eb",
+                        "error-container": "#93000a",
+                        "on-secondary": "#263046",
+                        "on-error": "#690005",
+                        "error": "#ffb4ab",
+                        "on-secondary-fixed": "#101b30",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#005226",
+                        "primary-fixed-dim": "#b8c3ff",
+                        "tertiary-fixed": "#62ff96",
+                        "secondary-container": "#3e4960",
+                        "secondary-fixed-dim": "#bbc6e2",
+                        "primary-container": "#001252",
+                        "on-secondary-fixed-variant": "#3c475d",
+                        "primary-fixed": "#dde1ff",
+                        "on-surface-variant": "#c4c6cc",
+                        "outline": "#8e9196",
+                        "secondary-fixed": "#d7e2ff",
+                        "outline-variant": "#44474c",
+                        "on-primary": "#002388",
+                        "primary": "#b8c3ff",
+                        "on-tertiary-container": "#00974b",
+                        "surface-container-high": "#272a31",
+                        "surface-container-highest": "#32353c",
+                        "inverse-on-surface": "#2e3037",
+                        "on-secondary-container": "#adb8d3",
+                        "tertiary-container": "#00200b",
+                        "on-background": "#e1e2eb",
+                        "on-tertiary-fixed": "#00210b",
+                        "surface-container-low": "#191c22",
+                        "inverse-surface": "#e1e2eb",
+                        "surface-variant": "#32353c",
+                        "on-primary-fixed": "#001356",
+                        "surface-bright": "#363940",
+                        "tertiary-fixed-dim": "#00e475",
+                        "background": "#10131a",
+                        "on-primary-container": "#5877ff",
+                        "surface-dim": "#10131a",
+                        "tertiary": "#00e475",
+                        "secondary": "#bbc6e2",
+                        "surface": "#10131a",
+                        "surface-tint": "#b8c3ff",
+                        "surface-container": "#1d2026",
+                        "inverse-primary": "#124af0",
+                        "on-primary-fixed-variant": "#0035be"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(54, 57, 64, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .machined-gradient {
+            background: linear-gradient(135deg, #b8c3ff 0%, #5877ff 100%);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #10131a; }
+        ::-webkit-scrollbar-thumb { background: #32353c; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body overflow-x-hidden">
+<!-- TopNavBar -->
+<header class="w-full top-0 sticky z-50 bg-[#10131a] shadow-none flex items-center justify-between px-8 h-16 w-full font-['Manrope'] tracking-tight">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold text-[#b8c3ff] tracking-tighter">Factory Analytics</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1" href="#">Dashboard</a>
+<a class="text-[#909094] hover:text-[#e2e2e6] transition-colors" href="#">Settings</a>
+<a class="text-[#909094] hover:text-[#e2e2e6] transition-colors" href="#">History</a>
+<a class="text-[#909094] hover:text-[#e2e2e6] transition-colors" href="#">Logs</a>
+<a class="text-[#909094] hover:text-[#e2e2e6] transition-colors" href="#">Control Center</a>
+<a class="text-[#909094] hover:text-[#e2e2e6] transition-colors" href="#">API Explorer</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined text-[#909094] cursor-pointer p-2 hover:bg-[#32353c] rounded-md transition-all">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-tertiary rounded-full border-2 border-[#10131a]"></span>
+</div>
+<span class="material-symbols-outlined text-[#909094] cursor-pointer p-2 hover:bg-[#32353c] rounded-md transition-all">account_circle</span>
+</div>
+</header>
+<div class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-[#10131a] flex flex-col h-full py-6 z-40 border-r border-outline-variant/10 shadow-[24px_0_40px_rgba(0,18,82,0.06)] pt-20">
+<div class="px-6 mb-8">
+<div class="text-[#b8c3ff] font-bold italic font-['Space_Grotesk'] uppercase text-xs tracking-widest">Industrial Sentinel</div>
+<div class="text-[10px] text-outline mt-1 font-label">v2.4.0-Stable</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-6 py-3 bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span> Overview
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">videocam</span> Cameras
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">group_work</span> Groups
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">leaderboard</span> Analytics
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">description</span> Reports
+                </a>
+</nav>
+<div class="mt-auto space-y-1">
+<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">help</span> Support
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined">logout</span> Sign Out
+                </a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 flex-1 p-8 space-y-8">
+<!-- Hero Stats & Quick Actions -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+<div class="lg:col-span-3 space-y-6">
+<div class="flex items-baseline justify-between">
+<h1 class="font-headline font-extrabold text-4xl text-on-surface tracking-tight">System Overview</h1>
+<span class="font-label text-xs uppercase text-primary tracking-[0.2em]">Live Monitoring Active</span>
+</div>
+<!-- Bento Dashboard Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Quick Actions Card -->
+<div class="bg-surface-container-low p-6 flex flex-col gap-4">
+<h3 class="font-label text-[10px] uppercase text-outline tracking-widest">Rapid Command</h3>
+<div class="grid grid-cols-1 gap-2">
+<button class="machined-gradient text-on-primary-fixed py-2 px-4 rounded-md font-label text-xs font-bold uppercase flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm">sync</span> Sync Cameras
+                                </button>
+<button class="bg-surface-container-highest text-primary py-2 px-4 rounded-md font-label text-xs font-bold uppercase flex items-center justify-center gap-2 hover:bg-surface-bright transition-colors">
+<span class="material-symbols-outlined text-sm">refresh</span> Refresh All
+                                </button>
+<button class="bg-surface-container-highest text-primary py-2 px-4 rounded-md font-label text-xs font-bold uppercase flex items-center justify-center gap-2 hover:bg-surface-bright transition-colors">
+<span class="material-symbols-outlined text-sm">article</span> View Logs
+                                </button>
+</div>
+</div>
+<!-- System Health Card -->
+<div class="bg-surface-container-low p-6 md:col-span-2">
+<h3 class="font-label text-[10px] uppercase text-outline tracking-widest mb-4">Core Infrastructure</h3>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div class="bg-surface-container p-3 flex flex-col items-center justify-center gap-1">
+<div class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_#00e475]"></div>
+<span class="font-label text-[10px] text-outline uppercase">Application</span>
+<span class="font-headline font-bold text-sm">Healthy</span>
+</div>
+<div class="bg-surface-container p-3 flex flex-col items-center justify-center gap-1">
+<div class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_#00e475]"></div>
+<span class="font-label text-[10px] text-outline uppercase">Database</span>
+<span class="font-headline font-bold text-sm">Synced</span>
+</div>
+<div class="bg-surface-container p-3 flex flex-col items-center justify-center gap-1">
+<div class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_#00e475]"></div>
+<span class="font-label text-[10px] text-outline uppercase">Frigate</span>
+<span class="font-headline font-bold text-sm">Online</span>
+</div>
+<div class="bg-surface-container p-3 flex flex-col items-center justify-center gap-1">
+<div class="w-2 h-2 rounded-full bg-error animate-pulse shadow-[0_0_8px_#ffb4ab]"></div>
+<span class="font-label text-[10px] text-outline uppercase">Ollama</span>
+<span class="font-headline font-bold text-sm text-error">Timeout</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Daily Summary Stats (Right Column) -->
+<div class="bg-surface-container p-6 space-y-4">
+<h3 class="font-label text-[10px] uppercase text-outline tracking-widest">Sentinel Insight</h3>
+<div class="space-y-4">
+<div class="flex justify-between items-center border-b border-outline-variant/10 pb-2">
+<span class="text-xs text-on-surface-variant font-label uppercase">Date</span>
+<span class="text-sm font-bold">2023-11-14</span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="p-2 bg-surface-container-low">
+<span class="block text-[10px] text-tertiary uppercase font-label">Working</span>
+<span class="text-lg font-headline font-bold">09h 42m</span>
+</div>
+<div class="p-2 bg-surface-container-low">
+<span class="block text-[10px] text-outline uppercase font-label">Idle</span>
+<span class="text-lg font-headline font-bold">04h 15m</span>
+</div>
+<div class="p-2 bg-surface-container-low">
+<span class="block text-[10px] text-secondary uppercase font-label">Sleeping</span>
+<span class="text-lg font-headline font-bold">08h 22m</span>
+</div>
+<div class="p-2 bg-surface-container-low">
+<span class="block text-[10px] text-error uppercase font-label">Stopped</span>
+<span class="text-lg font-headline font-bold">01h 41m</span>
+</div>
+</div>
+<div class="pt-2">
+<span class="block text-[10px] text-outline uppercase font-label mb-2">Segment Velocity</span>
+<div class="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 72%;"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Management Tabs & Tools -->
+<div class="grid grid-cols-1 gap-8">
+<!-- Cameras Section -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-xl tracking-tight">Camera Management</h2>
+<div class="flex gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
+<input class="bg-surface-container-lowest border-none text-xs px-10 py-2 w-64 focus:ring-0 focus:border-b focus:border-primary placeholder:text-outline/50" placeholder="Search ID, Name..." type="text"/>
+</div>
+<button class="bg-primary-container text-primary text-xs font-bold font-label uppercase px-4 py-2 hover:bg-on-primary-fixed-variant transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span> New Node
+                            </button>
+</div>
+</div>
+<div class="bg-surface-container-low overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high/30">
+<th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Node ID</th>
+<th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Name</th>
+<th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Provider Alias</th>
+<th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">State</th>
+<th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Interval</th>
+<th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest">Status Feed</th>
+<th class="p-4 font-label text-[10px] uppercase text-outline tracking-widest text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="p-4 text-xs font-label text-primary">#CAM-001</td>
+<td class="p-4 text-sm font-semibold">Assembly Line A</td>
+<td class="p-4 text-xs font-label">FRIGATE_PRO_01</td>
+<td class="p-4">
+<input checked="" class="rounded bg-surface-container-highest border-none text-primary focus:ring-primary focus:ring-offset-background" type="checkbox"/>
+</td>
+<td class="p-4">
+<input class="bg-surface-container-lowest border-none text-xs w-16 px-2 py-1 text-center" type="number" value="10"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span class="text-[10px] uppercase font-bold text-tertiary">Feed Validated</span>
+</div>
+</td>
+<td class="p-4 text-right space-x-2">
+<button class="text-primary p-1 hover:bg-surface-bright rounded transition-colors"><span class="material-symbols-outlined text-sm">save</span></button>
+<button class="text-outline p-1 hover:bg-surface-bright rounded transition-colors"><span class="material-symbols-outlined text-sm">analytics</span></button>
+<button class="text-error/60 p-1 hover:bg-error-container/20 rounded transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container transition-colors group">
+<td class="p-4 text-xs font-label text-primary">#CAM-002</td>
+<td class="p-4 text-sm font-semibold">Loading Bay North</td>
+<td class="p-4 text-xs font-label">FRIGATE_PRO_02</td>
+<td class="p-4">
+<input class="rounded bg-surface-container-highest border-none text-primary focus:ring-primary focus:ring-offset-background" type="checkbox"/>
+</td>
+<td class="p-4">
+<input class="bg-surface-container-lowest border-none text-xs w-16 px-2 py-1 text-center" type="number" value="30"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+<span class="text-[10px] uppercase font-bold text-error">Connection Refused</span>
+</div>
+</td>
+<td class="p-4 text-right space-x-2">
+<button class="text-primary p-1 hover:bg-surface-bright rounded transition-colors"><span class="material-symbols-outlined text-sm">save</span></button>
+<button class="text-outline p-1 hover:bg-surface-bright rounded transition-colors"><span class="material-symbols-outlined text-sm">analytics</span></button>
+<button class="text-error/60 p-1 hover:bg-error-container/20 rounded transition-colors"><span class="material-symbols-outlined text-sm">delete</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Configuration Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Add Camera Form -->
+<section class="bg-surface-container-low p-6 space-y-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">add_box</span>
+<h2 class="font-headline font-bold text-lg tracking-tight">Provision New Node</h2>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<label class="font-label text-[10px] uppercase text-outline">Node Identifier</label>
+<input class="w-full bg-surface-container-lowest border-none text-sm p-3 focus:ring-0 focus:border-b focus:border-primary" placeholder="e.g. ZONE_3_DOOR" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="font-label text-[10px] uppercase text-outline">Frigate Source</label>
+<select class="w-full bg-surface-container-lowest border-none text-sm p-3 focus:ring-0">
+<option>Select Camera Source</option>
+<option>cam_main_entrance</option>
+<option>cam_parking_lot</option>
+</select>
+</div>
+<div class="col-span-2 flex items-center justify-between bg-surface-container p-4">
+<div class="flex flex-col">
+<span class="font-headline font-semibold text-sm">Vision Inference</span>
+<span class="text-[10px] text-outline uppercase font-label">AI Object Tracking Engine</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+<button class="w-full machined-gradient text-on-primary-fixed py-3 font-label font-bold uppercase tracking-widest text-sm rounded-md active:scale-95 transition-transform">Initialize Camera</button>
+</section>
+<!-- Groups Management -->
+<section class="bg-surface-container-low p-6 space-y-6">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">groups</span>
+<h2 class="font-headline font-bold text-lg tracking-tight">Logic Groups</h2>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[10px]">search</span>
+<input class="bg-surface-container-lowest border-none text-[10px] px-8 py-1.5 w-40 focus:ring-0 placeholder:text-outline/50" placeholder="Search groups..." type="text"/>
+</div>
+</div>
+<div class="space-y-3">
+<div class="bg-surface-container p-4 flex items-center justify-between group hover:bg-surface-container-highest transition-colors">
+<div class="flex flex-col">
+<span class="font-label text-[10px] text-primary uppercase">Sequential</span>
+<span class="font-headline font-bold text-sm">Floor_01_Inspection</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-outline-variant flex items-center justify-center text-[10px] font-bold">C1</div>
+<div class="w-6 h-6 rounded-full bg-outline-variant flex items-center justify-center text-[10px] font-bold">C2</div>
+<div class="w-6 h-6 rounded-full bg-primary-container text-primary flex items-center justify-center text-[10px] font-bold">+2</div>
+</div>
+<button class="bg-surface-bright p-2 rounded hover:text-tertiary transition-colors">
+<span class="material-symbols-outlined text-sm">play_arrow</span>
+</button>
+</div>
+</div>
+<div class="bg-surface-container p-4 flex items-center justify-between group hover:bg-surface-container-highest transition-colors">
+<div class="flex flex-col">
+<span class="font-label text-[10px] text-primary uppercase">Parallel</span>
+<span class="font-headline font-bold text-sm">Warehouse_Safety_Net</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-outline-variant flex items-center justify-center text-[10px] font-bold">W1</div>
+<div class="w-6 h-6 rounded-full bg-outline-variant flex items-center justify-center text-[10px] font-bold">W5</div>
+</div>
+<button class="bg-surface-bright p-2 rounded hover:text-tertiary transition-colors">
+<span class="material-symbols-outlined text-sm">play_arrow</span>
+</button>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<input class="flex-1 bg-surface-container-lowest border-none text-xs p-2 focus:ring-0" placeholder="New Group Name" type="text"/>
+<button class="bg-primary text-on-primary font-label text-[10px] font-bold uppercase px-4 py-2 hover:bg-primary-fixed-dim">Create</button>
+</div>
+</section>
+</div>
+<!-- Daily Chart Visualization -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-xl tracking-tight">Daily Efficiency Analysis</h2>
+<div class="flex gap-2">
+<span class="flex items-center gap-1 text-[10px] font-label text-outline uppercase"><span class="w-2 h-2 rounded-full bg-tertiary"></span> Uptime</span>
+<span class="flex items-center gap-1 text-[10px] font-label text-outline uppercase"><span class="w-2 h-2 rounded-full bg-secondary"></span> Standby</span>
+<span class="flex items-center gap-1 text-[10px] font-label text-outline uppercase"><span class="w-2 h-2 rounded-full bg-error"></span> Downtime</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-8 h-64 flex items-end justify-between gap-4 relative overflow-hidden">
+<!-- Horizontal Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between p-8 opacity-10 pointer-events-none">
+<div class="border-t border-outline"></div>
+<div class="border-t border-outline"></div>
+<div class="border-t border-outline"></div>
+<div class="border-t border-outline"></div>
+</div>
+<!-- Bar Elements -->
+<div class="flex flex-col flex-1 gap-1 items-center z-10">
+<div class="w-full flex flex-col-reverse max-w-[40px] h-full gap-0.5">
+<div class="bg-tertiary h-[60%] rounded-t-sm"></div>
+<div class="bg-secondary h-[25%]"></div>
+<div class="bg-error h-[15%] rounded-b-sm"></div>
+</div>
+<span class="text-[9px] font-label text-outline uppercase">00:00</span>
+</div>
+<div class="flex flex-col flex-1 gap-1 items-center z-10">
+<div class="w-full flex flex-col-reverse max-w-[40px] h-full gap-0.5">
+<div class="bg-tertiary h-[40%] rounded-t-sm"></div>
+<div class="bg-secondary h-[50%]"></div>
+<div class="bg-error h-[10%] rounded-b-sm"></div>
+</div>
+<span class="text-[9px] font-label text-outline uppercase">04:00</span>
+</div>
+<div class="flex flex-col flex-1 gap-1 items-center z-10">
+<div class="w-full flex flex-col-reverse max-w-[40px] h-full gap-0.5">
+<div class="bg-tertiary h-[80%] rounded-t-sm"></div>
+<div class="bg-secondary h-[15%]"></div>
+<div class="bg-error h-[5%] rounded-b-sm"></div>
+</div>
+<span class="text-[9px] font-label text-outline uppercase">08:00</span>
+</div>
+<div class="flex flex-col flex-1 gap-1 items-center z-10">
+<div class="w-full flex flex-col-reverse max-w-[40px] h-full gap-0.5">
+<div class="bg-tertiary h-[95%] rounded-t-sm"></div>
+<div class="bg-error h-[5%] rounded-b-sm"></div>
+</div>
+<span class="text-[9px] font-label text-outline uppercase">12:00</span>
+</div>
+<div class="flex flex-col flex-1 gap-1 items-center z-10">
+<div class="w-full flex flex-col-reverse max-w-[40px] h-full gap-0.5">
+<div class="bg-tertiary h-[75%] rounded-t-sm"></div>
+<div class="bg-secondary h-[15%]"></div>
+<div class="bg-error h-[10%] rounded-b-sm"></div>
+</div>
+<span class="text-[9px] font-label text-outline uppercase">16:00</span>
+</div>
+<div class="flex flex-col flex-1 gap-1 items-center z-10">
+<div class="w-full flex flex-col-reverse max-w-[40px] h-full gap-0.5">
+<div class="bg-tertiary h-[65%] rounded-t-sm"></div>
+<div class="bg-secondary h-[30%]"></div>
+<div class="bg-error h-[5%] rounded-b-sm"></div>
+</div>
+<span class="text-[9px] font-label text-outline uppercase">20:00</span>
+</div>
+<div class="flex flex-col flex-1 gap-1 items-center z-10">
+<div class="w-full flex flex-col-reverse max-w-[40px] h-full gap-0.5">
+<div class="bg-tertiary h-[30%] rounded-t-sm"></div>
+<div class="bg-secondary h-[60%]"></div>
+<div class="bg-error h-[10%] rounded-b-sm"></div>
+</div>
+<span class="text-[9px] font-label text-outline uppercase">23:59</span>
+</div>
+</div>
+</section>
+<!-- Recent Activity Segments -->
+<section class="space-y-4">
+<h2 class="font-headline font-bold text-xl tracking-tight">Critical Segments</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-surface-container p-4 border-l-2 border-tertiary flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-[10px] font-label text-outline uppercase">Timestamp</span>
+<span class="bg-tertiary/10 text-tertiary text-[9px] font-bold px-2 py-0.5 rounded uppercase">Working</span>
+</div>
+<span class="text-sm font-bold">14:22:15 - 14:45:00</span>
+<span class="text-[11px] text-on-surface-variant">Optimization cycle: Phase A completed.</span>
+</div>
+<div class="bg-surface-container p-4 border-l-2 border-error flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-[10px] font-label text-outline uppercase">Timestamp</span>
+<span class="bg-error/10 text-error text-[9px] font-bold px-2 py-0.5 rounded uppercase">Stopped</span>
+</div>
+<span class="text-sm font-bold">13:10:42 - 13:15:20</span>
+<span class="text-[11px] text-on-surface-variant">Ollama Timeout detected. Retrying...</span>
+</div>
+<div class="bg-surface-container p-4 border-l-2 border-secondary flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-[10px] font-label text-outline uppercase">Timestamp</span>
+<span class="bg-secondary/10 text-secondary text-[9px] font-bold px-2 py-0.5 rounded uppercase">Sleeping</span>
+</div>
+<span class="text-sm font-bold">12:00:00 - 13:00:00</span>
+<span class="text-[11px] text-on-surface-variant">Shift changeover - system in standby.</span>
+</div>
+<div class="bg-surface-container p-4 border-l-2 border-primary flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<span class="text-[10px] font-label text-outline uppercase">Timestamp</span>
+<span class="bg-primary/10 text-primary text-[9px] font-bold px-2 py-0.5 rounded uppercase">Uncertain</span>
+</div>
+<span class="text-sm font-bold">11:15:00 - 11:20:00</span>
+<span class="text-[11px] text-on-surface-variant">Feed degradation on Node CAM-002.</span>
+</div>
+</div>
+</section>
+</div>
+</main>
+</div>
+</body></html>

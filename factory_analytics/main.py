@@ -433,6 +433,8 @@ def list_segments(
     from_ts: str | None = Query(None, alias="from"),
     to_ts: str | None = Query(None, alias="to"),
     min_confidence: float | None = None,
+    limit: int = 200,
+    offset: int = 0,
 ):
     return service.segments(
         camera_id=camera_id,
@@ -440,6 +442,8 @@ def list_segments(
         from_ts=from_ts,
         to_ts=to_ts,
         min_confidence=min_confidence,
+        limit=limit,
+        offset=offset,
     )
 
 

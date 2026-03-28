@@ -58,22 +58,78 @@
 </div>
 </div>
 
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Add Camera Form -->
+<section class="bg-surface-container-low p-6 space-y-6 rounded-xl">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">add_box</span>
+<h2 class="font-headline font-bold text-lg tracking-tight">Provision New Node</h2>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<label class="font-label text-[10px] uppercase text-outline">Node Identifier</label>
+<input id="camera-display-name" class="w-full bg-surface-container-lowest border-none text-sm p-3 focus:ring-0 focus:border-b focus:border-primary rounded" placeholder="e.g. ZONE_3_DOOR" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="font-label text-[10px] uppercase text-outline">Frigate Source</label>
+<select id="frigate-camera-select" class="w-full bg-surface-container-lowest border-none text-sm p-3 focus:ring-0 rounded">
+<option value="">Select Camera Source</option>
+</select>
+</div>
+<div class="col-span-2 flex items-center justify-between bg-surface-container p-4 rounded">
+<div class="flex flex-col">
+<span class="font-headline font-semibold text-sm">Vision Inference</span>
+<span class="text-[10px] text-outline uppercase font-label">AI Object Tracking Engine</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input id="camera-enabled-new" class="sr-only peer" type="checkbox" checked/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<div class="col-span-2 space-y-1">
+<label class="font-label text-[10px] uppercase text-outline">Polling Interval (s)</label>
+<input id="camera-interval-new" class="w-full bg-surface-container-lowest border-none text-sm p-3 focus:ring-0 focus:border-b focus:border-primary rounded" type="number" min="30" value="300" />
+</div>
+<input id="frigate-manual" type="hidden" />
+<select id="ollama-enabled-select" class="hidden"><option value="true">Enabled</option></select>
+</div>
+<div class="flex gap-2">
+  <button onclick="testNewCamera()" class="flex-1 bg-surface-container-highest text-primary py-3 rounded-md font-label text-xs font-bold uppercase tracking-widest hover:bg-surface-bright transition-colors">Test Node</button>
+  <button onclick="addCamera()" class="flex-[2] machined-gradient text-on-primary-fixed py-3 font-label font-bold uppercase tracking-widest text-sm rounded-md active:scale-95 transition-transform">Initialize Camera</button>
+</div>
+<div id="new-camera-test-status" class="text-[10px] text-outline italic"></div>
+</section>
+
+<!-- Groups Management -->
+<section class="bg-surface-container-low p-6 space-y-6 rounded-xl">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">groups</span>
+<h2 class="font-headline font-bold text-lg tracking-tight">Logic Groups</h2>
+</div>
+</div>
+<div class="space-y-3 overflow-auto max-h-[300px]" id="groupTable">
+</div>
+<div class="space-y-2 pt-4 border-t border-outline-variant/10">
+  <div class="flex gap-2">
+    <input id="group-type" class="w-1/3 bg-surface-container-lowest border-none text-[10px] p-2 focus:ring-0 rounded" placeholder="Type (machine/room)" type="text"/>
+    <input id="group-name" class="flex-1 bg-surface-container-lowest border-none text-[10px] p-2 focus:ring-0 rounded" placeholder="New Group Name" type="text"/>
+  </div>
+  <div class="flex gap-2">
+    <input id="group-interval" class="flex-1 bg-surface-container-lowest border-none text-[10px] p-2 focus:ring-0 rounded" placeholder="Interval (s)" value="300" type="number"/>
+    <button onclick="addGroup()" class="bg-primary text-on-primary font-label text-[10px] font-bold uppercase px-6 py-2 rounded hover:bg-primary-fixed-dim">Create Group</button>
+  </div>
+</div>
+</section>
+</div>
+
 <div class="grid grid-cols-1 gap-8">
 <!-- Cameras Section -->
 <section class="space-y-4" id="cameras">
 <div class="flex items-center justify-between">
-<h2 class="font-headline font-bold text-xl tracking-tight">Camera Management</h2>
+<h2 class="font-headline font-bold text-xl tracking-tight">Camera Nodes</h2>
 </div>
 <div class="bg-surface-container-low overflow-hidden rounded-xl" id="cameraTable">
-</div>
-</section>
-
-<!-- Groups Section -->
-<section class="space-y-4">
-<div class="flex items-center justify-between">
-<h2 class="font-headline font-bold text-xl tracking-tight">Groups Management</h2>
-</div>
-<div class="bg-surface-container-low overflow-hidden rounded-xl" id="groupTable">
 </div>
 </section>
 </div>

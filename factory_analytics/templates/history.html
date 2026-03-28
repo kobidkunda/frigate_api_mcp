@@ -136,6 +136,13 @@
       fd.forEach((v, k) => { if (v) params.append(k, v); });
       params.append('limit', String(PAGE_SIZE));
       params.append('offset', String((page - 1) * PAGE_SIZE));
+      
+      // Fixed: use min_confidence directly if provided
+      const minConfInput = document.querySelector('input[name="min_confidence"]');
+      if (minConfInput && minConfInput.value !== '0') {
+          params.set('min_confidence', minConfInput.value);
+      }
+
       const url = '/api/history/segments?' + params.toString();
       setBusy(true); setStateEmpty(false); setStateError(false);
       let segments;

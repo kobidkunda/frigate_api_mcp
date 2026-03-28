@@ -560,6 +560,8 @@ class AnalyticsService:
         from_ts: str | None = None,
         to_ts: str | None = None,
         min_confidence: float | None = None,
+        limit: int = 200,
+        offset: int = 0,
     ):
         return self.db.list_segments(
             camera_id=camera_id,
@@ -567,6 +569,8 @@ class AnalyticsService:
             from_ts=from_ts,
             to_ts=to_ts,
             min_confidence=min_confidence,
+            limit=limit,
+            offset=offset,
         )
 
     def segments_paginated(
