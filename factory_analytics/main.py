@@ -11,6 +11,12 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from factory_analytics.config import BASE_DIR, LOG_ROOT
+from factory_analytics.control_center import (
+    build_api_catalog,
+    get_config_file_inventory,
+    get_platform_install_instructions,
+    get_skill_inventory,
+)
 from factory_analytics.database import Database
 from factory_analytics.services import AnalyticsService
 from factory_analytics.worker import WorkerLoop
@@ -69,6 +75,13 @@ class CameraTestPayload(BaseModel):
 class GroupCreate(BaseModel):
     group_type: str
     name: str
+    interval_seconds: int | None = 300
+
+
+class GroupUpdate(BaseModel):
+    group_type: str | None = None
+    name: str | None = None
+    interval_seconds: int | None = None
 
 
 class GroupCameraPayload(BaseModel):
@@ -113,9 +126,24 @@ def history_page(request: Request):
     return templates.TemplateResponse("history.html", {"request": request})
 
 
+@app.get("/groups", response_class=HTMLResponse)
+def groups_page(request: Request):
+    return templates.TemplateResponse("groups.html", {"request": request})
+
+
 @app.get("/logs", response_class=HTMLResponse)
 def logs_page(request: Request):
     return templates.TemplateResponse("logs.html", {"request": request})
+
+
+@app.get("/control-center", response_class=HTMLResponse)
+def control_center_page(request: Request):
+    return templates.TemplateResponse("control_center.html", {"request": request})
+
+
+@app.get("/api-explorer", response_class=HTMLResponse)
+def api_explorer_page(request: Request):
+    return templates.TemplateResponse("api_explorer.html", {"request": request})
 
 
 @app.get("/processed-events", response_class=HTMLResponse)
@@ -154,6 +182,20 @@ def system_status():
     }
 
 
+@app.get("/api/control-center/config")
+def control_center_config():
+    return {
+        "config_files": get_config_file_inventory(),
+        "skills": get_skill_inventory(),
+        "platform_instructions": get_platform_install_instructions(),
+    }
+
+
+@app.get("/api/api-explorer/catalog")
+def api_explorer_catalog():
+    return build_api_catalog(app)
+
+
 @app.get("/api/settings")
 def get_settings():
     return service.settings()
@@ -185,6 +227,14 @@ def list_cameras():
     return service.list_cameras()
 
 
+@app.get("/api/cameras/{camera_id}")
+def get_camera(camera_id: int):
+    camera = service.get_camera(camera_id)
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    return camera
+
+
 @app.get("/api/groups")
 def list_groups():
     return service.list_groups()
@@ -192,7 +242,24 @@ def list_groups():
 
 @app.post("/api/groups")
 def create_group(payload: GroupCreate):
-    return service.create_group(payload.group_type, payload.name)
+    return service.create_group(
+        payload.group_type, payload.name, payload.interval_seconds
+    )
+
+
+@app.put("/api/groups/{group_id}")
+def update_group(group_id: int, payload: GroupUpdate):
+    group = service.update_group(
+        group_id, payload.group_type, payload.name, payload.interval_seconds
+    )
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group
+
+
+@app.delete("/api/groups/{group_id}")
+def delete_group(group_id: int):
+    return service.delete_group(group_id)
 
 
 @app.post("/api/groups/{group_id}/cameras")
