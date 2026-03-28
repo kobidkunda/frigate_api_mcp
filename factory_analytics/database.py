@@ -380,15 +380,34 @@ class Database:
         return self.get_job(job_id)
 
     def schedule_group_job(
-        self,
-        group_id: int,
-        anchor_camera_id: int,
-        payload: dict[str, Any] | None = None,
+        self, camera_id: int, group_id: int, group_type: str, group_name: str
     ) -> dict[str, Any]:
-        merged_payload = {**(payload or {}), "group_id": group_id}
-        return self.schedule_job(
-            anchor_camera_id, job_type="group_analysis", payload=merged_payload
-        )
+        with self.connect() as conn:
+            now = datetime.now(timezone.utc).isoformat()
+            cur = conn.execute(
+                """
+                INSERT INTO jobs 
+                (camera_id, job_type, status, created_at, payload_json)
+                VALUES (?, ?, ?, ?, ?)
+                RETURNING id, camera_id, status, created_at, payload_json
+                """,
+                (
+                    camera_id,
+                    "group_analysis",
+                    "pending",
+                    now,
+                    json.dumps(
+                        {
+                            "source": "group_scheduler",
+                            "group_id": group_id,
+                            "group_type": group_type,
+                            "group_name": group_name,
+                        }
+                    ),
+                ),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else {}
 
     def next_pending_job(self) -> dict[str, Any] | None:
         with self.connect() as conn:
