@@ -130,6 +130,9 @@ start_debug_all() {
   echo "Press Ctrl+C to stop"
   echo "---"
 
+  ensure_port_free "${APP_PORT}" "API" || exit 1
+  ensure_port_free "${MCP_PORT}" "MCP" || exit 1
+
   cd "${BASE_DIR}"
 
   ./.venv/bin/uvicorn factory_analytics.main:app \
@@ -155,6 +158,18 @@ find_listener_pid() {
   local port="$1"
   command -v lsof >/dev/null 2>&1 || return 1
   lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -n1 || true
+}
+
+ensure_port_free() {
+  local port="$1"
+  local name="$2"
+  local pid=""
+  pid="$(find_listener_pid "$port" || true)"
+  if [ -n "${pid:-}" ]; then
+    echo "${name} port ${port} is already in use by pid ${pid}. Stop the running service first."
+    return 1
+  fi
+  return 0
 }
 
 stop_api() {
@@ -219,7 +234,7 @@ main() {
     logs)
       logs_follow
       ;;
-    debug)
+    dev|debug)
       start_debug_all
       ;;
     debug-api)
@@ -229,7 +244,7 @@ main() {
       start_debug_mcp
       ;;
     *)
-      echo "Usage: $0 {start|stop|restart|status|logs|debug|debug-api|debug-mcp}"
+      echo "Usage: $0 {start|stop|restart|status|logs|dev|debug|debug-api|debug-mcp}"
       exit 1
       ;;
   esac

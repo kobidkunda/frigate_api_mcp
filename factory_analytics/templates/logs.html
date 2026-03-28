@@ -1,23 +1,46 @@
 {% extends "partials/base.html" %}
 {% block title %}Logs{% endblock %}
 {% block content %}
-  <main id="main" role="main">
-    <section class="card span-2">
-      <div class="inline-actions">
-        <button onclick="loadLog('api')">API Logs</button>
-        <button onclick="loadLog('worker')">Worker Logs</button>
-        <button onclick="loadLog('mcp')">MCP Logs</button>
-        <button onclick="refreshLog()">Refresh</button>
-        <label><input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" /> Auto-refresh</label>
-      </div>
-      <div id="logs-region" role="region" aria-live="polite" aria-busy="false">
-        <pre id="logView" class="log-output"></pre>
-        <div class="state state-error" id="logs-error" role="alert" hidden>Failed to load logs</div>
-        <div class="state state-loading" id="logs-loading" aria-hidden="true" hidden>Loading…</div>
-      </div>
-    </section>
-  </main>
-  <script>
+<main class="flex-1 p-8 bg-surface-dim">
+<header class="mb-8">
+<h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">System Logs</h1>
+<p class="text-on-surface-variant font-body">Real-time application telemetry.</p>
+</header>
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+<div class="flex items-center justify-between">
+<div class="flex gap-2">
+<button onclick="loadLog('api')" class="bg-surface-container-highest text-primary py-2 px-4 rounded-md font-label text-xs font-bold uppercase hover:bg-surface-bright transition-colors">API</button>
+<button onclick="loadLog('worker')" class="bg-surface-container-highest text-primary py-2 px-4 rounded-md font-label text-xs font-bold uppercase hover:bg-surface-bright transition-colors">Worker</button>
+<button onclick="loadLog('mcp')" class="bg-surface-container-highest text-primary py-2 px-4 rounded-md font-label text-xs font-bold uppercase hover:bg-surface-bright transition-colors">MCP</button>
+</div>
+<div class="flex items-center gap-4">
+<label class="flex items-center gap-2 cursor-pointer font-label text-xs uppercase tracking-widest text-outline">
+<input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" class="rounded bg-surface-container-highest border-none text-primary focus:ring-primary" /> Auto-refresh
+</label>
+<button onclick="refreshLog()" class="bg-primary-container text-primary text-xs font-bold font-label uppercase px-4 py-2 hover:bg-on-primary-fixed-variant transition-all flex items-center gap-2 rounded-md">
+<span class="material-symbols-outlined text-sm">refresh</span> Refresh
+</button>
+</div>
+</div>
+<div id="logs-region" role="region" aria-live="polite" aria-busy="false" class="relative">
+<pre id="logView" class="bg-surface-container-lowest p-4 rounded-lg overflow-auto h-[600px] text-xs font-mono text-on-surface-variant border border-outline-variant/5 shadow-inner"></pre>
+<!-- States -->
+<div class="absolute inset-0 flex items-center justify-center bg-surface-container-lowest/80 backdrop-blur-sm z-10" id="logs-loading" hidden>
+  <div class="flex items-center gap-3">
+    <span class="material-symbols-outlined animate-spin text-primary">sync</span>
+    <span class="font-label text-sm uppercase tracking-widest text-primary">Loading Logs...</span>
+  </div>
+</div>
+<div class="absolute inset-0 flex items-center justify-center z-10 bg-surface-container-lowest/80" id="logs-error" hidden>
+  <div class="text-center">
+    <span class="material-symbols-outlined text-4xl text-error mb-2">error</span>
+    <p class="font-label text-sm uppercase tracking-widest text-error">Failed to load logs</p>
+  </div>
+</div>
+</div>
+</section>
+</main>
+<script>
     let currentLog = 'api';
     let autoRefreshInterval = null;
     async function loadLog(name) {
@@ -31,7 +54,8 @@
         document.getElementById('logView').textContent = data.content || '';
       } catch(e){ err.hidden = false; }
       region.setAttribute('aria-busy','false'); loading.hidden = true;
-      document.getElementById('logView').scrollTop = document.getElementById('logView').scrollHeight;
+      const view = document.getElementById('logView');
+      view.scrollTop = view.scrollHeight;
     }
     function refreshLog() { loadLog(currentLog); }
     function toggleAutoRefresh() {
@@ -43,5 +67,5 @@
       }
     }
     document.addEventListener('DOMContentLoaded', () => loadLog('api'));
-  </script>
+</script>
 {% endblock %}

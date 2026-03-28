@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SENTINEL | Mobile Analytics Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&amp;family=Space+Grotesk:wght@400;700&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed-dim": "#b8c3ff",
+              "on-tertiary-fixed-variant": "#005226",
+              "surface-container-low": "#191c22",
+              "secondary-fixed": "#d7e2ff",
+              "primary": "#b8c3ff",
+              "tertiary": "#00e475",
+              "surface-variant": "#32353c",
+              "on-primary-fixed": "#001356",
+              "on-error": "#690005",
+              "on-error-container": "#ffdad6",
+              "primary-container": "#001252",
+              "tertiary-fixed-dim": "#00e475",
+              "outline": "#8e9196",
+              "surface-container-highest": "#32353c",
+              "secondary": "#bbc6e2",
+              "on-tertiary-container": "#00974b",
+              "secondary-container": "#3e4960",
+              "surface-bright": "#363940",
+              "on-primary-container": "#5877ff",
+              "error": "#ffb4ab",
+              "on-tertiary-fixed": "#00210b",
+              "on-surface": "#e1e2eb",
+              "background": "#10131a",
+              "secondary-fixed-dim": "#bbc6e2",
+              "surface-tint": "#b8c3ff",
+              "on-secondary-container": "#adb8d3",
+              "surface-dim": "#10131a",
+              "outline-variant": "#44474c",
+              "on-tertiary": "#003918",
+              "inverse-surface": "#e1e2eb",
+              "on-secondary-fixed-variant": "#3c475d",
+              "on-secondary-fixed": "#101b30",
+              "error-container": "#93000a",
+              "surface-container-high": "#272a31",
+              "tertiary-fixed": "#62ff96",
+              "on-secondary": "#263046",
+              "on-surface-variant": "#c4c6cc",
+              "inverse-on-surface": "#2e3037",
+              "on-primary-fixed-variant": "#0035be",
+              "primary-fixed": "#dde1ff",
+              "tertiary-container": "#00200b",
+              "surface-container-lowest": "#0b0e14",
+              "surface": "#10131a",
+              "on-primary": "#002388",
+              "surface-container": "#1d2026",
+              "on-background": "#e1e2eb",
+              "inverse-primary": "#124af0"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Space Grotesk"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+        body {
+            background-color: #10131a;
+            color: #e1e2eb;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="dark bg-background pb-32">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#10131a] dark:bg-[#10131a] bg-gradient-to-b from-[#191c22] to-transparent shadow-2xl shadow-[#001252]/10">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#b8c3ff] text-2xl" data-icon="factory">factory</span>
+<h1 class="font-['Manrope'] font-black tracking-tighter uppercase text-[#b8c3ff] text-xl">SENTINEL</h1>
+</div>
+<button class="text-[#b8c3ff] active:opacity-70 transition-opacity touch-manipulation scale-95 transition-transform">
+<span class="material-symbols-outlined text-2xl" data-icon="notifications">notifications</span>
+</button>
+</header>
+<main class="mt-20 px-4 space-y-8">
+<!-- System Health Section -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline font-bold text-lg tracking-tight text-on-surface">System Health</h2>
+<span class="font-label text-[10px] uppercase tracking-widest text-tertiary">Live Feed</span>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="settings_applications">settings_applications</span>
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+</div>
+<span class="font-label text-[11px] uppercase text-outline">Application</span>
+<span class="font-headline font-bold text-on-surface">99.8%</span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="database">database</span>
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+</div>
+<span class="font-label text-[11px] uppercase text-outline">Database</span>
+<span class="font-headline font-bold text-on-surface">Active</span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="videocam">videocam</span>
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+</div>
+<span class="font-label text-[11px] uppercase text-outline">Frigate</span>
+<span class="font-headline font-bold text-on-surface">Stable</span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="psychology">psychology</span>
+<div class="w-2 h-2 rounded-full bg-error"></div>
+</div>
+<span class="font-label text-[11px] uppercase text-outline">Ollama</span>
+<span class="font-headline font-bold text-on-surface">Queued</span>
+</div>
+</div>
+</section>
+<!-- Quick Actions Horizontal Scroll -->
+<section>
+<div class="flex overflow-x-auto hide-scrollbar gap-3 pb-2">
+<button class="flex-shrink-0 flex items-center gap-2 bg-primary-container text-primary px-5 py-3 rounded-full font-label text-xs font-bold uppercase tracking-widest active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-lg" data-icon="sync">sync</span>
+                    Sync Cameras
+                </button>
+<button class="flex-shrink-0 flex items-center gap-2 bg-surface-container-high text-on-surface-variant px-5 py-3 rounded-full font-label text-xs font-bold uppercase tracking-widest active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-lg" data-icon="refresh">refresh</span>
+                    Refresh All
+                </button>
+<button class="flex-shrink-0 flex items-center gap-2 bg-surface-container-high text-on-surface-variant px-5 py-3 rounded-full font-label text-xs font-bold uppercase tracking-widest active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-lg" data-icon="terminal">terminal</span>
+                    View Logs
+                </button>
+</div>
+</section>
+<!-- Camera Management List -->
+<section>
+<h2 class="font-headline font-bold text-lg tracking-tight text-on-surface mb-4">Camera Management</h2>
+<div class="space-y-3">
+<!-- Camera Card 1 -->
+<div class="bg-surface-container p-4 rounded-2xl flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest overflow-hidden">
+<img class="w-full h-full object-cover opacity-60" data-alt="security camera lens close up with infrared sensors in a dark industrial environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDN5kZwesu2Xdm023wumkePkQGgUaidN0fVe6qfNMNUp6d_N0HmNOZxgEmztgxV1W3MNlcTLF0If4rhkUtM2q_pPWHvU0mpM7yj6iVBcR8Qh-J4Zrn_frVLtkXFm5N7YFK6xsGhp_aSDjTeVr8_2V_1vJfhHflcI8vA49fHgymC8I1u0bkbW-4914Td06XOjAS53xM1AmYSL3qgUaJ6ZUnieCSDWvoY5Q_NhZrL3xocRw_uKf7BcVUs0ZZptrP7Of0pXSUKWXwPG8I"/>
+</div>
+<div>
+<h3 class="font-body font-semibold text-on-surface">Main Assembly Line</h3>
+<p class="font-label text-[10px] text-outline uppercase tracking-wider">CAM-01-NORTH</p>
+</div>
+</div>
+<div class="flex items-center h-6 w-11 bg-tertiary/20 rounded-full relative">
+<div class="absolute right-1 w-4 h-4 bg-tertiary rounded-full"></div>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-highest py-2 rounded-lg font-label text-[10px] uppercase font-bold tracking-widest flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="save">save</span> Save
+                        </button>
+<button class="flex-1 bg-surface-container-highest py-2 rounded-lg font-label text-[10px] uppercase font-bold tracking-widest flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="play_circle">play_circle</span> Test
+                        </button>
+<button class="w-10 bg-error-container text-on-error-container py-2 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<!-- Camera Card 2 -->
+<div class="bg-surface-container p-4 rounded-2xl flex flex-col gap-4">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest overflow-hidden">
+<img class="w-full h-full object-cover opacity-60" data-alt="high angle security feed of an industrial warehouse floor with stacked pallets" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDs8oRXTR_ciljXs0iJMLrjkOOpL019UkPfk-iZ2LfF5VJS9snheNxH7Q3aI3z_b8IAQayV_CE4ISNu3N2xTNS-b3mQvEK4HEY0oDtzlJHai_YYOahHcObJ85OdArmtTPuwQfT8GQetAg9ldETL_QBqoYGNyKtAXm6JZBG1vFcttkXzQX3Wbw8FSdUoAV5fJhOhOVd21wm53BPA72b-VbFOUg1NM54iw9bE_X6oef_CZuRkrJNxBNvlmIYAcf7-stuGT8PsJcvB-3s"/>
+</div>
+<div>
+<h3 class="font-body font-semibold text-on-surface">Loading Dock B</h3>
+<p class="font-label text-[10px] text-outline uppercase tracking-wider">CAM-04-EAST</p>
+</div>
+</div>
+<div class="flex items-center h-6 w-11 bg-surface-container-highest rounded-full relative">
+<div class="absolute left-1 w-4 h-4 bg-outline rounded-full"></div>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-surface-container-highest py-2 rounded-lg font-label text-[10px] uppercase font-bold tracking-widest flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="save">save</span> Save
+                        </button>
+<button class="flex-1 bg-surface-container-highest py-2 rounded-lg font-label text-[10px] uppercase font-bold tracking-widest flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="play_circle">play_circle</span> Test
+                        </button>
+<button class="w-10 bg-error-container text-on-error-container py-2 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-sm" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Provision New Node Form -->
+<section class="bg-[#b8c3ff]/5 p-6 rounded-3xl border border-[#44474c]/15">
+<h2 class="font-headline font-bold text-lg tracking-tight text-primary mb-4">Provision New Node</h2>
+<div class="space-y-4">
+<div>
+<label class="font-label text-[10px] uppercase tracking-widest text-outline block mb-1">Node Identifier</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b border-primary/30 text-on-surface px-0 py-2 focus:ring-0 focus:border-primary placeholder:text-outline/40" placeholder="e.g. SENTINEL-NODE-01" type="text"/>
+</div>
+<div>
+<label class="font-label text-[10px] uppercase tracking-widest text-outline block mb-1">Gateway IP</label>
+<input class="w-full bg-surface-container-lowest border-0 border-b border-primary/30 text-on-surface px-0 py-2 focus:ring-0 focus:border-primary placeholder:text-outline/40" placeholder="192.168.1.XX" type="text"/>
+</div>
+<button class="w-full bg-gradient-to-r from-primary to-on-primary-container text-on-primary-container py-4 rounded-xl font-label font-bold uppercase tracking-widest mt-2 active:scale-95 transition-transform">
+                    Initialize Deployment
+                </button>
+</div>
+</section>
+<!-- Logic Groups Section -->
+<section>
+<h2 class="font-headline font-bold text-lg tracking-tight text-on-surface mb-4">Logic Groups</h2>
+<div class="space-y-3">
+<div class="bg-surface-container-low p-4 rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary" data-icon="hub">hub</span>
+<span class="font-body font-medium text-on-surface">Perimeter Breach</span>
+</div>
+<span class="font-label text-[10px] text-tertiary bg-tertiary/10 px-2 py-1 rounded">ACTIVE</span>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="group_work">group_work</span>
+<span class="font-body font-medium text-on-surface">Mask Compliance</span>
+</div>
+<span class="font-label text-[10px] text-outline bg-surface-variant px-2 py-1 rounded">IDLE</span>
+</div>
+<!-- Create Input -->
+<div class="flex items-center gap-3 bg-surface-container-lowest p-1 pl-4 rounded-full border border-outline-variant/15">
+<input class="flex-1 bg-transparent border-none text-sm focus:ring-0" placeholder="New logic group name..." type="text"/>
+<button class="w-10 h-10 rounded-full bg-primary text-primary-container flex items-center justify-center active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Daily Efficiency Analysis -->
+<section>
+<h2 class="font-headline font-bold text-lg tracking-tight text-on-surface mb-4">Daily Efficiency</h2>
+<div class="bg-surface-container-low p-4 rounded-2xl h-48 flex flex-col">
+<div class="flex items-end justify-between h-32 gap-2 mt-4">
+<div class="flex-1 bg-surface-container-highest rounded-t-sm relative group h-[40%]">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 font-label text-[10px] text-outline">08</div>
+</div>
+<div class="flex-1 bg-tertiary/60 rounded-t-sm relative group h-[70%]">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 font-label text-[10px] text-outline">10</div>
+</div>
+<div class="flex-1 bg-primary/60 rounded-t-sm relative group h-[95%]">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 font-label text-[10px] text-outline">12</div>
+</div>
+<div class="flex-1 bg-primary/60 rounded-t-sm relative group h-[85%]">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 font-label text-[10px] text-outline">14</div>
+</div>
+<div class="flex-1 bg-tertiary/60 rounded-t-sm relative group h-[60%]">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 font-label text-[10px] text-outline">16</div>
+</div>
+<div class="flex-1 bg-surface-container-highest rounded-t-sm relative group h-[30%]">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 font-label text-[10px] text-outline">18</div>
+</div>
+</div>
+<div class="flex justify-between mt-auto pt-2 border-t border-outline-variant/10">
+<span class="font-label text-[10px] text-outline">00:00</span>
+<span class="font-label text-[10px] text-primary">Peak 12:45</span>
+<span class="font-label text-[10px] text-outline">23:59</span>
+</div>
+</div>
+</section>
+<!-- Critical Segments -->
+<section>
+<h2 class="font-headline font-bold text-lg tracking-tight text-on-surface mb-4">Critical Segments</h2>
+<div class="space-y-3">
+<div class="flex gap-4 p-4 bg-surface-container-low rounded-xl items-center">
+<div class="w-2 h-10 bg-tertiary rounded-full"></div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-body font-bold text-on-surface">Segment Alpha</span>
+<span class="font-label text-[10px] text-outline">12:30 PM</span>
+</div>
+<span class="font-label text-[11px] text-tertiary uppercase tracking-widest">Working Optimal</span>
+</div>
+</div>
+<div class="flex gap-4 p-4 bg-surface-container-low rounded-xl items-center">
+<div class="w-2 h-10 bg-error rounded-full"></div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-body font-bold text-on-surface">Conveyor Belt C</span>
+<span class="font-label text-[10px] text-outline">11:15 AM</span>
+</div>
+<span class="font-label text-[11px] text-error uppercase tracking-widest">Stopped Critical</span>
+</div>
+</div>
+<div class="flex gap-4 p-4 bg-surface-container-low rounded-xl items-center opacity-60">
+<div class="w-2 h-10 bg-secondary rounded-full"></div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-body font-bold text-on-surface">Storage Unit 4</span>
+<span class="font-label text-[10px] text-outline">09:45 AM</span>
+</div>
+<span class="font-label text-[11px] text-outline uppercase tracking-widest">Standby Mode</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#191c22]/60 backdrop-blur-xl dark:bg-[#191c22]/60 border-t border-[#44474c]/15 shadow-[0_-8px_24px_rgba(0,18,82,0.08)] rounded-t-2xl">
+<button class="flex flex-col items-center justify-center bg-[#b8c3ff]/10 text-[#b8c3ff] rounded-xl px-4 py-2 active:scale-90 transition-all duration-200 ease-out">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">Dashboard</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#44474c] px-4 py-2 active:scale-90 transition-all duration-200 ease-out">
+<span class="material-symbols-outlined" data-icon="videocam">videocam</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">Cameras</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#44474c] px-4 py-2 active:scale-90 transition-all duration-200 ease-out">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">Groups</span>
+</button>
+<button class="flex flex-col items-center justify-center text-[#44474c] px-4 py-2 active:scale-90 transition-all duration-200 ease-out">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">Analytics</span>
+</button>
+</nav>
+</body></html>

@@ -357,6 +357,61 @@ Expected: FAIL until group UI exists.
 - Add camera-to-group membership UI
 - Keep existing camera add/edit/test/delete intact
 
+### Task 8a: Add dedicated Groups management page
+
+**Files:**
+- Create: `factory_analytics/templates/groups.html`
+- Create: `factory_analytics/static/groups.js`
+- Modify: `factory_analytics/main.py`
+- Modify: `factory_analytics/templates/partials/nav.html` or current nav template used in repo
+- Modify: `factory_analytics/services.py`
+- Modify: `factory_analytics/database.py`
+- Test: `tests/test_groups_ui.py`
+
+**Step 1: Write the failing test**
+
+```python
+def test_groups_page_renders_full_group_management(client):
+    response = client.get('/groups')
+    assert response.status_code == 200
+    html = response.text
+    assert 'Groups' in html
+    assert 'Create Group' in html
+    assert 'Remove Camera' in html
+```
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `pytest tests/test_groups_ui.py -v`
+Expected: FAIL because dedicated page does not exist.
+
+**Step 3: Write minimal implementation**
+
+- Add `/groups` page route
+- Add full UI for:
+  - create group
+  - rename group
+  - delete group
+  - list current members
+  - add camera to group
+  - remove camera from group
+- Add missing backend endpoints if needed:
+  - `PUT /api/groups/{group_id}`
+  - `DELETE /api/groups/{group_id}`
+
+**Step 4: Run test to verify it passes**
+
+Run: `pytest tests/test_groups_ui.py -v`
+Expected: PASS
+
+**Step 5: Commit**
+
+```bash
+git add tests/test_groups_ui.py factory_analytics/templates/groups.html factory_analytics/static/groups.js factory_analytics/main.py factory_analytics/services.py factory_analytics/database.py
+git commit -m "feat(groups): add dedicated groups management page"
+```
+
 **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/test_ui_ux.py::test_group_management_ui_renders_without_removing_camera_ui -v`

@@ -1,34 +1,85 @@
 {% extends "partials/base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-  <main id="main" class="grid" role="main">
-    {% set tabs = [
-      { 'label': 'Health', 'href': '/dashboard', 'active': True },
-      { 'label': 'Settings', 'href': '/settings', 'active': False }
-    ] %}
-    {% include "partials/secondary_tabs.html" with context %}
+<!-- Hero Stats & Quick Actions -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+<div class="lg:col-span-3 space-y-6">
+<div class="flex items-baseline justify-between">
+<h1 class="font-headline font-extrabold text-4xl text-on-surface tracking-tight">System Overview</h1>
+<span class="font-label text-xs uppercase text-primary tracking-[0.2em]">Live Monitoring Active</span>
+</div>
+<!-- Bento Dashboard Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Quick Actions Card -->
+<div class="bg-surface-container-low p-6 flex flex-col gap-4 rounded-xl">
+<h3 class="font-label text-[10px] uppercase text-outline tracking-widest">Rapid Command</h3>
+<div class="grid grid-cols-1 gap-2">
+<button onclick="syncCameras()" class="machined-gradient text-on-primary-fixed py-2 px-4 rounded-md font-label text-xs font-bold uppercase flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm">sync</span> Sync Cameras
+                                </button>
+<button onclick="refreshAll()" class="bg-surface-container-highest text-primary py-2 px-4 rounded-md font-label text-xs font-bold uppercase flex items-center justify-center gap-2 hover:bg-surface-bright transition-colors">
+<span class="material-symbols-outlined text-sm">refresh</span> Refresh All
+                                </button>
+<a href="/logs" class="bg-surface-container-highest text-primary py-2 px-4 rounded-md font-label text-xs font-bold uppercase flex items-center justify-center gap-2 hover:bg-surface-bright transition-colors text-center">
+<span class="material-symbols-outlined text-sm">article</span> View Logs
+                                </a>
+</div>
+</div>
+<!-- System Health Card -->
+<div class="bg-surface-container-low p-6 md:col-span-2 rounded-xl">
+<h3 class="font-label text-[10px] uppercase text-outline tracking-widest mb-4">Core Infrastructure</h3>
+<div id="health-region" role="region" aria-live="polite" aria-busy="false">
+  <div id="healthCards" class="grid grid-cols-2 md:grid-cols-4 gap-4" aria-label="Key indicators"></div>
+  <div class="state state-empty" id="health-empty" hidden>No health data</div>
+  <div class="state state-error" id="health-error" role="alert" hidden>Failed to load health</div>
+  <div class="state state-loading" id="health-loading" aria-hidden="true" hidden>Loading…</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Daily Summary Stats (Right Column) -->
+<div class="bg-surface-container p-6 space-y-4 rounded-xl">
+<h3 class="font-label text-[10px] uppercase text-outline tracking-widest">Sentinel Insight</h3>
+<div class="space-y-4">
+<div class="flex justify-between items-center border-b border-outline-variant/10 pb-2">
+<span class="text-xs text-on-surface-variant font-label uppercase">Date</span>
+<span class="text-sm font-bold" id="current-date"></span>
+</div>
+<div class="grid grid-cols-2 gap-4">
+  <div id="reportView" class="col-span-2 report"></div>
+</div>
+<div class="pt-2">
+<h4 class="font-label text-[10px] uppercase text-outline tracking-widest mb-2">Daily Trend</h4>
+<div class="h-24 w-full bg-surface-container-lowest relative rounded-sm overflow-hidden">
+  <canvas id="chartCanvas" width="600" height="240" class="w-full h-full"></canvas>
+</div>
+</div>
+</div>
+</div>
+</div>
 
-    <section class="card span-2">
-      <h2>Quick Actions</h2>
-      <div class="actions-row">
-        <button class="btn primary" onclick="syncCameras()">Sync Cameras</button>
-        <button class="btn" onclick="refreshAll()">Refresh All</button>
-        <a class="btn" href="/logs">View Logs</a>
-      </div>
-    </section>
-    <section class="card span-2">
-      <h2>System Health</h2>
-      <div id="health-region" role="region" aria-live="polite" aria-busy="false">
-        <div id="healthCards" class="kpi-grid" aria-label="Key indicators"></div>
-        <div class="state state-empty" id="health-empty" hidden>No health data</div>
-        <div class="state state-error" id="health-error" role="alert" hidden>Failed to load health</div>
-        <div class="state state-loading" id="health-loading" aria-hidden="true" hidden>Loading…</div>
-      </div>
-    </section>
-    <section class="card span-2"><h2>Cameras</h2><div id="cameraTable"></div></section>
-    <section class="card span-2"><h2>Groups</h2><div id="groupTable"></div></section>
-    <section class="card"><h2>Daily Chart</h2><canvas id="chartCanvas" width="600" height="240"></canvas></section>
-    <section class="card"><h2>Daily Report</h2><div id="reportView" class="report"></div></section>
-  </main>
-  <script>document.addEventListener('DOMContentLoaded', () => { loadHealth(); loadCameras(); loadChart(); loadReport(); });</script>
+<div class="grid grid-cols-1 gap-8">
+<!-- Cameras Section -->
+<section class="space-y-4" id="cameras">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-xl tracking-tight">Camera Management</h2>
+</div>
+<div class="bg-surface-container-low overflow-hidden rounded-xl" id="cameraTable">
+</div>
+</section>
+
+<!-- Groups Section -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-xl tracking-tight">Groups Management</h2>
+</div>
+<div class="bg-surface-container-low overflow-hidden rounded-xl" id="groupTable">
+</div>
+</section>
+</div>
+
+<script>
+  document.getElementById('current-date').innerText = new Date().toISOString().split('T')[0];
+  document.addEventListener('DOMContentLoaded', () => { loadHealth(); loadCameras(); loadChart(); loadReport(); });
+</script>
 {% endblock %}

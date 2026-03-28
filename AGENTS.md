@@ -19,6 +19,7 @@ For every meaningful code or config change:
 7. Main application files here factory_analytics*
 8. application starts via factory-analytics.sh cmd 
 9. Logs here logs*
+10. UI Ux Design topograpthy etc here docs/DESIGN.md
 No task is considered complete until both the real project files and the docs memory are updated.
 
 

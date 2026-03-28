@@ -19,6 +19,18 @@ DEFAULT_PROMPT = (
     "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1."
 )
 
+GROUP_PROMPT = (
+    "You are classifying a merged multi-camera factory collage image. "
+    "The image may contain several camera views in a grid. "
+    "Analyze only visible factory/worksite scenes in the collage. "
+    "Ignore any imagined webpages, articles, ads, or unrelated text. "
+    "Return JSON only with keys label, confidence, notes, boxes. "
+    "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
+    "Base your answer only on visible evidence from the collage. "
+    "Confidence must be a number from 0 to 1. "
+    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1."
+)
+
 VALID_LABELS = {
     "working",
     "idle",
@@ -29,6 +41,38 @@ VALID_LABELS = {
     "timepass",
     "operator_missing",
 }
+
+
+def normalize_label(raw_label: str) -> str | None:
+    label = (raw_label or "").strip().lower().replace("-", " ")
+    if label in VALID_LABELS:
+        return label
+    aliases = {
+        "sleep suspect": "sleep-suspect",
+        "sleeping suspect": "sleep-suspect",
+        "time pass": "timepass",
+        "timepassing": "timepass",
+        "operator missing": "operator_missing",
+        "missing operator": "operator_missing",
+        "no operator": "operator_missing",
+        "not working": "idle",
+        "doing no work": "idle",
+        "stopped vehicle": "stopped",
+        "vehicle stopped": "stopped",
+        "stopped machine": "stopped",
+        "machine stopped": "stopped",
+    }
+    if label in aliases:
+        return aliases[label]
+    if "sleep" in label and "suspect" in label:
+        return "sleep-suspect"
+    if "time" in label and "pass" in label:
+        return "timepass"
+    if "operator" in label and ("missing" in label or "absent" in label):
+        return "operator_missing"
+    if label.startswith("stopped"):
+        return "stopped"
+    return None
 
 
 class OllamaClient:
@@ -65,36 +109,30 @@ class OllamaClient:
             logger.exception("Ollama health failed")
             return {"ok": False, "message": str(exc)}
 
-    def classify_image(
-        self, image_path: Path, prompt: str | None = None
+    def _parse_classification_content(
+        self, content: str, *, group_mode: bool
     ) -> dict[str, Any]:
-        if not self.enabled:
-            raise RuntimeError("Ollama disabled in settings")
-        prompt = prompt or DEFAULT_PROMPT
-        image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
-        payload = {
-            "model": self.model,
-            "stream": False,
-            "format": "json",
-            "keep_alive": self.keep_alive,
-            "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
-        }
-        timeout = httpx.Timeout(connect=5, read=self.timeout, write=10, pool=5)
-        headers = {"Connection": "keep-alive"}
-        with httpx.Client(timeout=timeout, headers=headers) as client:
-            r = client.post(self._chat_url(), json=payload)
-            r.raise_for_status()
-            data = r.json()
-        content = (((data.get("message") or {}).get("content")) or "").strip()
-        if not content:
-            raise RuntimeError(f"Model {self.model} returned empty response")
         try:
             parsed = json.loads(content)
-            label = parsed.get("label", "uncertain")
+            if group_mode and (
+                parsed.get("type") == "text/html"
+                or "<html" in str(parsed.get("data", "")).lower()
+                or "<div" in str(parsed.get("data", "")).lower()
+                or "productivity tools" in str(parsed.get("data", "")).lower()
+            ):
+                raise RuntimeError(
+                    f"Model {self.model} returned non-factory html garbage for group analysis"
+                )
+            if group_mode and "label" not in parsed:
+                raise RuntimeError(
+                    f"Model {self.model} returned malformed group payload without label"
+                )
+            raw_label = parsed.get("label", "uncertain")
+            label = normalize_label(raw_label)
             confidence = parsed.get("confidence", 0.0)
             if label not in VALID_LABELS:
                 raise RuntimeError(
-                    f"Model {self.model} returned invalid label: {label}"
+                    f"Model {self.model} returned invalid label: {raw_label}"
                 )
             try:
                 confidence = float(confidence)
@@ -107,6 +145,8 @@ class OllamaClient:
                     f"Model {self.model} returned confidence out of range: {confidence}"
                 )
             boxes = parsed.get("boxes")
+            if group_mode and boxes is None:
+                boxes = []
             if not isinstance(boxes, list):
                 raise RuntimeError(f"Model {self.model} returned invalid boxes payload")
             for item in boxes:
@@ -139,9 +179,57 @@ class OllamaClient:
                 "confidence": confidence,
                 "notes": parsed.get("notes", ""),
                 "boxes": boxes,
-                "raw": data,
             }
         except json.JSONDecodeError as exc:
             raise RuntimeError(
                 f"Model {self.model} did not return JSON: {content[:300]}"
             ) from exc
+
+    def _classify_with_prompt(
+        self, image_path: Path, prompt: str, *, group_mode: bool
+    ) -> dict[str, Any]:
+        if not self.enabled:
+            raise RuntimeError("Ollama disabled in settings")
+        image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+        payload = {
+            "model": self.model,
+            "stream": False,
+            "format": "json",
+            "keep_alive": self.keep_alive,
+            "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
+        }
+        timeout = httpx.Timeout(connect=5, read=self.timeout, write=10, pool=5)
+        headers = {"Connection": "keep-alive"}
+        with httpx.Client(timeout=timeout, headers=headers) as client:
+            r = client.post(self._chat_url(), json=payload)
+            r.raise_for_status()
+            data = r.json()
+        content = (((data.get("message") or {}).get("content")) or "").strip()
+        if not content:
+            raise RuntimeError(f"Model {self.model} returned empty response")
+        result = self._parse_classification_content(content, group_mode=group_mode)
+        result["raw"] = data
+        return result
+
+    def classify_image(
+        self, image_path: Path, prompt: str | None = None
+    ) -> dict[str, Any]:
+        return self._classify_with_prompt(
+            image_path, prompt or DEFAULT_PROMPT, group_mode=False
+        )
+
+    def classify_group_image(self, image_path: Path) -> dict[str, Any]:
+        try:
+            return self._classify_with_prompt(image_path, GROUP_PROMPT, group_mode=True)
+        except RuntimeError as exc:
+            if (
+                "html garbage" not in str(exc).lower()
+                and "did not return json" not in str(exc).lower()
+                and "invalid boxes payload" not in str(exc).lower()
+                and "malformed group payload" not in str(exc).lower()
+            ):
+                raise
+            logger.warning(
+                "Group analysis received garbage response, retrying once with strict prompt"
+            )
+            return self._classify_with_prompt(image_path, GROUP_PROMPT, group_mode=True)

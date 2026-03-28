@@ -1,0 +1,41 @@
+{% extends "partials/base.html" %}
+{% block title %}Control Center{% endblock %}
+{% block content %}
+<main class="flex-1 p-8 bg-surface-dim">
+<header class="mb-8">
+<h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Control Center</h1>
+<p class="text-on-surface-variant font-body">Read-only config inspection, MCP/API monitoring, skills inventory, and platform install guidance.</p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 lg:col-span-2">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-primary">folder</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Config Files</h2>
+      </div>
+      <div id="config-files" class="space-y-4"></div>
+    </section>
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-tertiary">monitor_heart</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">MCP / API Status</h2>
+      </div>
+      <div id="mcp-status" class="space-y-4"></div>
+    </section>
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-secondary">extension</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Skills</h2>
+      </div>
+      <div id="skill-files" class="space-y-4"></div>
+    </section>
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 lg:col-span-2">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-outline">terminal</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Install Instructions</h2>
+      </div>
+      <div id="platform-instructions" class="space-y-4"></div>
+    </section>
+</div>
+</main>
+<script src="/static/control_center.js"></script>
+{% endblock %}

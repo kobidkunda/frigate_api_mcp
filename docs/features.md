@@ -11,8 +11,8 @@
 - Feature: Baseline pages (Dashboard, Settings, History, Logs)
   - Status: active
   - Paths: `factory_analytics/templates/*`, `factory_analytics/static/*`
-  - Notes: Keyboard skip link and ARIA roles in place; high-contrast theme; initial charts and tables; resilient per-page JS init; favicon configured; Control Center and API Explorer pages added for config inspection and API catalog browsing
-  - Last updated: 2026-03-28
+  - Notes: Updated using Stitch design system "Industrial Sentinel" with Tailwind CSS; Keyboard skip link and ARIA roles in place; high-contrast theme; initial charts and tables; resilient per-page JS init; favicon configured; Control Center and API Explorer pages added for config inspection and API catalog browsing
+  - Last updated: 2026-03-29
 
 ## Health API
 - Feature: System/Frigate/Ollama health endpoints

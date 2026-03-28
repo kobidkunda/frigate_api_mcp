@@ -41,6 +41,13 @@ class FrigateClient:
             return (self.username, self.password)
         return None
 
+    def _go2rtc_base_url(self) -> str | None:
+        if not self.base_url:
+            return None
+        if ":5000" in self.base_url:
+            return self.base_url.replace(":5000", ":1984")
+        return None
+
     def health(self) -> dict[str, Any]:
         if not self.base_url:
             return {"ok": False, "message": "Frigate URL not configured"}
@@ -92,11 +99,14 @@ class FrigateClient:
             # Discovery may fail even if snapshots work; proceed
             available = set()
         destination.parent.mkdir(parents=True, exist_ok=True)
-        # Request scaled image to reduce transfer/processing time
-        scale_qs = "h=720&quality=70"
         endpoints = [
-            f"{self.base_url}/api/{camera_name}/latest.jpg?{scale_qs}",
-            f"{self.base_url}/api/{camera_name}/grid.jpg?{scale_qs}",
+            *(
+                [f"{self._go2rtc_base_url()}/api/frame.jpeg?src={camera_name}"]
+                if self._go2rtc_base_url()
+                else []
+            ),
+            f"{self.base_url}/api/{camera_name}/latest.jpg",
+            f"{self.base_url}/api/{camera_name}/grid.jpg",
         ]
         last_error: str | None = None
         for endpoint in endpoints:

@@ -1,57 +1,192 @@
 {% extends "partials/base.html" %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-  <main id="main" role="main">
-    <section class="card">
-      <h2>Settings</h2>
-      <form id="settingsForm" class="stack">
-        <fieldset>
-          <legend>Frigate Configuration</legend>
-          <label>Frigate URL <input name="frigate_url" placeholder="https://frigate.local:8971" /></label>
-          <label>Auth Mode <select name="frigate_auth_mode">
-            <option value="none">None</option>
-            <option value="basic">Basic Auth</option>
-            <option value="bearer">Bearer Token</option>
-          </select></label>
-          <label>Username <input name="frigate_username" autocomplete="username" /></label>
-          <label>Password <input name="frigate_password" type="password" autocomplete="new-password" /></label>
-          <label>Bearer Token <input name="frigate_bearer_token" type="password" autocomplete="new-password" /></label>
-          <label>Verify TLS <select name="frigate_verify_tls">
-            <option value="false">false</option>
-            <option value="true">true</option>
-          </select></label>
-        </fieldset>
-        <fieldset>
-          <legend>Ollama Configuration</legend>
-          <label>Ollama URL <input name="ollama_url" placeholder="http://localhost:11434/api" /></label>
-          <label>Vision Model <input name="ollama_vision_model" placeholder="qwen2.5-vl:7b" /></label>
-          <label>Timeout (sec) <input name="ollama_timeout_sec" type="number" min="10" /></label>
-          <label>Keep Alive <input name="ollama_keep_alive" placeholder="5m" /></label>
-          <label>Ollama Enabled <select name="ollama_enabled">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-          </select></label>
-          <div class="inline-actions">
-            <button type="button" id="testOllamaBtn">Test Ollama Vision</button>
-          </div>
-          <div id="ollama-test-result" class="small"></div>
-        </fieldset>
-        <fieldset>
-          <legend>Analysis Settings</legend>
-          <label>Analysis Interval (sec) <input name="analysis_interval_seconds" type="number" min="30" /></label>
-          <label>Scheduler Enabled <select name="scheduler_enabled">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-          </select></label>
-        </fieldset>
-        <fieldset>
-          <legend>General</legend>
-          <label>Timezone <input name="timezone" placeholder="Asia/Kolkata" /></label>
-        </fieldset>
-        <button type="submit">Save Settings</button>
-      </form>
-    </section>
-  </main>
-  <script>document.getElementById('settingsForm').addEventListener('submit', async (ev) => { ev.preventDefault(); const fd = new FormData(ev.target); const values = Object.fromEntries(fd.entries()); values.frigate_verify_tls = values.frigate_verify_tls === 'true'; values.scheduler_enabled = values.scheduler_enabled === 'true'; values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }) }); alert('Settings saved'); });</script>
-  <script>document.addEventListener('DOMContentLoaded', async () => { const data = await fetch('/api/settings').then(r => r.json()); const form = document.getElementById('settingsForm'); Object.entries(data).forEach(([k, v]) => { const field = form.elements.namedItem(k); if (field) field.value = typeof v === 'boolean' ? String(v) : v; }); });</script>
+<div class="max-w-5xl mx-auto w-full">
+<header class="mb-12">
+<h1 class="font-headline text-3xl font-extrabold text-on-surface tracking-tight mb-2">System Configuration</h1>
+<p class="text-on-surface-variant font-body">Manage your industrial data pipelines and AI integration parameters.</p>
+</header>
+<form id="settingsForm" class="space-y-10">
+<!-- Frigate Configuration -->
+<section class="bg-surface-container-low p-8 rounded-xl shadow-2xl transition-all border border-outline-variant/5">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-primary">settings_input_component</span>
+<h2 class="font-headline text-xl font-bold text-primary">Frigate Configuration</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Server URL</label>
+<input name="frigate_url" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" placeholder="http://frigate.local:5000" type="text"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Auth Mode</label>
+<select name="frigate_auth_mode" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body">
+<option value="basic">Basic Auth</option>
+<option value="bearer">Bearer Token</option>
+<option value="none">None</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Username</label>
+<input name="frigate_username" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" placeholder="admin" type="text" autocomplete="username"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Password</label>
+<input name="frigate_password" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" placeholder="••••••••" type="password" autocomplete="new-password"/>
+</div>
+<div class="flex flex-col gap-2 md:col-span-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Bearer Token</label>
+<input name="frigate_bearer_token" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" placeholder="eyJh..." type="password" autocomplete="new-password"/>
+</div>
+<div class="flex items-center gap-3 md:col-span-2">
+<input name="frigate_verify_tls" value="true" class="rounded-sm bg-surface-container-lowest border-outline-variant text-primary focus:ring-primary" id="verify_tls" type="checkbox"/>
+<label class="text-sm text-on-surface-variant font-body" for="verify_tls">Verify TLS Certificates</label>
+</div>
+</div>
+</section>
+<!-- Ollama Configuration -->
+<section class="bg-surface-container-low p-8 rounded-xl shadow-2xl transition-all border border-outline-variant/5 relative overflow-hidden">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary">psychology</span>
+<h2 class="font-headline text-xl font-bold text-tertiary">Ollama AI Configuration</h2>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-xs font-label uppercase text-outline">System Active</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input type="checkbox" name="ollama_enabled" value="true" class="sr-only peer">
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-tertiary"></div>
+</label>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">API Endpoint</label>
+<input name="ollama_url" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="text" placeholder="http://localhost:11434/api"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Vision Model</label>
+<input name="ollama_vision_model" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" placeholder="qwen2.5-vl:7b">
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Timeout (sec)</label>
+<input name="ollama_timeout_sec" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="number" min="10"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Keep Alive</label>
+<input name="ollama_keep_alive" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="text" placeholder="5m"/>
+</div>
+</div>
+<div class="mt-8 flex justify-between items-center">
+<div id="ollama-test-result" class="text-sm text-on-surface-variant"></div>
+<button type="button" id="testOllamaBtn" class="flex items-center gap-2 px-6 py-2 border border-outline-variant/20 rounded-md text-on-surface hover:bg-surface-container-highest transition-all text-sm font-label uppercase tracking-widest">
+<span class="material-symbols-outlined text-sm">bolt</span>
+                                Test Connection
+                            </button>
+</div>
+</section>
+<!-- Analysis & General Settings -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Analysis Settings -->
+<section class="bg-surface-container-low p-8 rounded-xl shadow-2xl border border-outline-variant/5">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-secondary">query_stats</span>
+<h2 class="font-headline text-lg font-bold">Analysis Settings</h2>
+</div>
+<div class="space-y-6">
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Polling Interval (s)</label>
+<input name="analysis_interval_seconds" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-2 transition-all font-body" type="number" min="30"/>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-lowest rounded-lg">
+<label class="text-sm font-body">Scheduler Enabled</label>
+<label class="relative inline-flex items-center cursor-pointer">
+<input type="checkbox" name="scheduler_enabled" value="true" class="sr-only peer">
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- General -->
+<section class="bg-surface-container-low p-8 rounded-xl shadow-2xl border border-outline-variant/5">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-outline">public</span>
+<h2 class="font-headline text-lg font-bold">General</h2>
+</div>
+<div class="space-y-6">
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">Timezone</label>
+<input name="timezone" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-2 transition-all font-body" type="text" placeholder="Asia/Kolkata"/>
+</div>
+<div class="p-4 border-l-4 border-primary/20 bg-primary/5 rounded-r-lg">
+<p class="text-[11px] text-on-surface-variant font-label leading-relaxed">System logs and alerts will be timestamped relative to the selected timezone above.</p>
+</div>
+</div>
+</section>
+</div>
+<!-- Action Footer -->
+<div class="mt-16 sticky bottom-8 flex justify-center">
+<button type="submit" class="bg-gradient-to-r from-primary to-[#5877ff] text-on-primary-fixed px-12 py-4 rounded-md font-label font-bold uppercase tracking-widest shadow-[0_12px_40px_rgba(184,195,255,0.2)] hover:shadow-[0_12px_48px_rgba(184,195,255,0.4)] transform hover:-translate-y-1 transition-all active:scale-95">
+                        Save Configuration
+                    </button>
+</div>
+</form>
+</div>
+<script>
+  document.getElementById('settingsForm').addEventListener('submit', async (ev) => { 
+    ev.preventDefault(); 
+    const fd = new FormData(ev.target); 
+    const values = Object.fromEntries(fd.entries()); 
+    values.frigate_verify_tls = !!fd.get('frigate_verify_tls'); 
+    values.scheduler_enabled = !!fd.get('scheduler_enabled'); 
+    values.ollama_enabled = !!fd.get('ollama_enabled'); 
+    values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); 
+    values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); 
+    await fetch('/api/settings', { 
+      method: 'PUT', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ values }) 
+    }); 
+    const toast = document.createElement('div'); 
+    toast.className = 'bg-tertiary text-on-tertiary px-4 py-2 rounded-md font-label font-bold text-sm shadow-lg mb-2'; 
+    toast.textContent = 'Settings saved'; 
+    document.getElementById('toast-region').appendChild(toast); 
+    setTimeout(() => toast.remove(), 3000); 
+  });
+
+  document.addEventListener('DOMContentLoaded', async () => { 
+    const data = await fetch('/api/settings').then(r => r.json()); 
+    const form = document.getElementById('settingsForm'); 
+    Object.entries(data).forEach(([k, v]) => { 
+      const field = form.elements.namedItem(k); 
+      if (field) { 
+        if (field.type === 'checkbox') { 
+          field.checked = !!v; 
+        } else { 
+          field.value = typeof v === 'boolean' ? String(v) : v; 
+        } 
+      } 
+    }); 
+  });
+
+  document.getElementById('testOllamaBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('testOllamaBtn');
+    const res = document.getElementById('ollama-test-result');
+    btn.disabled = true;
+    res.innerHTML = 'Testing...';
+    try {
+      const response = await fetch('/api/health');
+      const data = await response.json();
+      if (data.ollama_status === 'ok') {
+        res.innerHTML = '<span class="text-tertiary">Connection Successful</span>';
+      } else {
+        res.innerHTML = `<span class="text-error">Connection Failed: ${data.ollama_status}</span>`;
+      }
+    } catch (err) {
+      res.innerHTML = '<span class="text-error">Connection Failed</span>';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
 {% endblock %}

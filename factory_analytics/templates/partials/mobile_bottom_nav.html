@@ -1,0 +1,24 @@
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#191c22]/60 backdrop-blur-xl border-t border-[#44474c]/15 shadow-[0_-8px_24px_rgba(0,18,82,0.08)] rounded-t-2xl md:hidden">
+    {% set is_dash = request.url.path.startswith('/dashboard') %}
+    {% set is_sett = request.url.path.startswith('/settings') %}
+    {% set is_hist = request.url.path.startswith('/history') %}
+    {% set is_groups = request.url.path.startswith('/groups') %}
+    {% set is_logs = request.url.path.startswith('/logs') %}
+
+    <a href="/dashboard" class="flex flex-col items-center justify-center px-4 py-2 active:scale-90 transition-all duration-200 ease-out {% if is_dash %}bg-[#b8c3ff]/10 text-[#b8c3ff] rounded-xl{% else %}text-[#44474c]{% endif %}">
+        <span class="material-symbols-outlined" style="{% if is_dash %}font-variation-settings: 'FILL' 1;{% endif %}">dashboard</span>
+        <span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">Dash</span>
+    </a>
+    <a href="/groups" class="flex flex-col items-center justify-center px-4 py-2 active:scale-90 transition-all duration-200 ease-out {% if is_groups %}bg-[#b8c3ff]/10 text-[#b8c3ff] rounded-xl{% else %}text-[#44474c]{% endif %}">
+        <span class="material-symbols-outlined" style="{% if is_groups %}font-variation-settings: 'FILL' 1;{% endif %}">hub</span>
+        <span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">Groups</span>
+    </a>
+    <a href="/history" class="flex flex-col items-center justify-center px-4 py-2 active:scale-90 transition-all duration-200 ease-out {% if is_hist %}bg-[#b8c3ff]/10 text-[#b8c3ff] rounded-xl{% else %}text-[#44474c]{% endif %}">
+        <span class="material-symbols-outlined" style="{% if is_hist %}font-variation-settings: 'FILL' 1;{% endif %}">history</span>
+        <span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">History</span>
+    </a>
+    <a href="/settings" class="flex flex-col items-center justify-center px-4 py-2 active:scale-90 transition-all duration-200 ease-out {% if is_sett %}bg-[#b8c3ff]/10 text-[#b8c3ff] rounded-xl{% else %}text-[#44474c]{% endif %}">
+        <span class="material-symbols-outlined" style="{% if is_sett %}font-variation-settings: 'FILL' 1;{% endif %}">settings</span>
+        <span class="font-['Space_Grotesk'] text-[10px] uppercase font-bold tracking-widest mt-1">Settings</span>
+    </a>
+</nav>

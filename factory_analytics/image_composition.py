@@ -3,10 +3,19 @@ from __future__ import annotations
 from math import ceil, sqrt
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+
+def _load_pil():
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pillow is required for image composition. Install dependencies with './.venv/bin/pip install -r requirements.txt'"
+        ) from exc
+    return Image, ImageDraw
 
 
 def merge_group_snapshots(images: list[tuple[str, Path]], output_path: Path) -> Path:
+    Image, ImageDraw = _load_pil()
     opened = [(name, Image.open(path).convert("RGB")) for name, path in images]
     if not opened:
         raise RuntimeError("No images to merge")

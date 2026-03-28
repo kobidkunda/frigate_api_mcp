@@ -1,0 +1,29 @@
+{% extends "partials/base.html" %}
+{% block title %}Groups{% endblock %}
+{% block content %}
+<main class="flex-1 p-8 bg-surface-dim">
+<header class="mb-12">
+<h1 class="font-headline text-3xl font-extrabold text-on-surface tracking-tight mb-2">Group Configuration</h1>
+<p class="text-on-surface-variant font-body">Manage logical groupings of camera nodes.</p>
+</header>
+<div class="max-w-5xl mx-auto w-full space-y-10">
+<!-- Groups Management -->
+<section class="bg-surface-container-low p-6 space-y-6">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">groups</span>
+<h2 class="font-headline font-bold text-lg tracking-tight">Logic Groups</h2>
+</div>
+</div>
+<div class="space-y-3" id="groups-management">
+</div>
+<div class="flex gap-2">
+<input id="groups-new-type" class="w-1/4 bg-surface-container-lowest border-none text-xs p-2 focus:ring-0" placeholder="Type (e.g. machine, room)" type="text"/>
+<input id="groups-new-name" class="flex-1 bg-surface-container-lowest border-none text-xs p-2 focus:ring-0" placeholder="New Group Name" type="text"/>
+<button id="groups-create-btn" class="bg-primary text-on-primary font-label text-[10px] font-bold uppercase px-4 py-2 hover:bg-primary-fixed-dim">Create</button>
+</div>
+</section>
+</div>
+</main>
+<script src="/static/groups.js"></script>
+{% endblock %}

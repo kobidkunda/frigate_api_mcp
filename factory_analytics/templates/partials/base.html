@@ -4,16 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Factory Analytics - {% block title %}{% endblock %}</title>
+  {% include "partials/tailwind_head.html" %}
+  {% include "partials/tailwind_config.html" %}
   <link rel="icon" href="/static/favicon.ico" />
   <link rel="stylesheet" href="/static/styles.css" />
   <link rel="stylesheet" href="/static/theme.css" />
   <link rel="stylesheet" href="/static/a11y.css" />
 </head>
-<body>
+<body class="bg-background text-on-surface font-body overflow-x-hidden pb-20 md:pb-0">
   <a href="#main" class="skip-link">Skip to content</a>
-  {% include "partials/nav.html" %}
-  {% block content %}{% endblock %}
-  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+  {% include "partials/top_nav.html" %}
+  <div class="flex min-h-screen">
+    {% include "partials/sidebar.html" %}
+    <main id="main" class="flex-1 p-4 md:p-8 space-y-8 md:ml-64" role="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% include "partials/mobile_bottom_nav.html" %}
+  <div id="toast-region" class="toast-region fixed bottom-24 right-4 z-50 md:bottom-4" role="status" aria-live="polite"></div>
   <script src="/static/app.js"></script>
 </body>
 </html>

@@ -2,10 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+
+def _load_pil():
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pillow is required for image annotation. Install dependencies with './.venv/bin/pip install -r requirements.txt'"
+        ) from exc
+    return Image, ImageDraw
 
 
 def draw_person_boxes(input_image: Path, output_image: Path, boxes: list[dict]) -> Path:
+    Image, ImageDraw = _load_pil()
     image = Image.open(input_image).convert("RGB")
     draw = ImageDraw.Draw(image)
     width, height = image.size

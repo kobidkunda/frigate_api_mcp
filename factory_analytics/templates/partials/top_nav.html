@@ -1,0 +1,29 @@
+<header class="w-full top-0 sticky z-50 bg-[#10131a] shadow-none flex items-center justify-between px-4 md:px-8 h-16 font-['Manrope'] tracking-tight">
+<div class="flex items-center gap-4 md:gap-8">
+<span class="text-xl font-bold text-[#b8c3ff] tracking-tighter">Factory Analytics</span>
+<nav class="hidden lg:flex items-center gap-6">
+    {% set is_dash = request.url.path.startswith('/dashboard') %}
+    {% set is_sett = request.url.path.startswith('/settings') or request.url.path.startswith('/system') %}
+    {% set is_hist = request.url.path.startswith('/history') %}
+    {% set is_groups = request.url.path.startswith('/groups') %}
+    {% set is_logs = request.url.path.startswith('/logs') %}
+    {% set is_control = request.url.path.startswith('/control-center') %}
+    {% set is_api_explorer = request.url.path.startswith('/api-explorer') %}
+<a class="{% if is_dash %}text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1{% else %}text-[#909094] hover:text-[#e2e2e6] transition-colors{% endif %}" href="/dashboard">Dashboard</a>
+<a class="{% if is_sett %}text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1{% else %}text-[#909094] hover:text-[#e2e2e6] transition-colors{% endif %}" href="/settings">Settings</a>
+<a class="{% if is_hist %}text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1{% else %}text-[#909094] hover:text-[#e2e2e6] transition-colors{% endif %}" href="/history">History</a>
+<a class="{% if is_groups %}text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1{% else %}text-[#909094] hover:text-[#e2e2e6] transition-colors{% endif %}" href="/groups">Groups</a>
+<a class="{% if is_logs %}text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1{% else %}text-[#909094] hover:text-[#e2e2e6] transition-colors{% endif %}" href="/logs">Logs</a>
+<a class="{% if is_control %}text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1{% else %}text-[#909094] hover:text-[#e2e2e6] transition-colors{% endif %}" href="/control-center">Control Center</a>
+<a class="{% if is_api_explorer %}text-[#b8c3ff] border-b-2 border-[#b8c3ff] pb-1{% else %}text-[#909094] hover:text-[#e2e2e6] transition-colors{% endif %}" href="/api-explorer">API Explorer</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button id="themeToggle" class="nav-btn" title="Toggle theme" aria-label="Toggle theme">Theme</button>
+<div class="relative group">
+<span class="material-symbols-outlined text-[#909094] cursor-pointer p-2 hover:bg-[#32353c] rounded-md transition-all">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-tertiary rounded-full border-2 border-[#10131a]"></span>
+</div>
+<span class="material-symbols-outlined text-[#909094] cursor-pointer p-2 hover:bg-[#32353c] rounded-md transition-all">account_circle</span>
+</div>
+</header>

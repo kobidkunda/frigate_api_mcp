@@ -24,6 +24,9 @@
 ## Blocked
 
 ## Done
+- [x] Stitch UI/UX design refresh
+  - Done: 2026-03-29
+  - Related: docs/implementation/2026-03-29-stitch-update.md
 - [x] Group serial processing with configurable intervals
   - Done: 2026-03-29
   - Related: docs/plans/2026-03-29-group-serial-processing-plan.md, docs/implementation/2026-03-29-group-serial-processing.md

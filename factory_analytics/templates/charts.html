@@ -1,50 +1,53 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Factory Analytics - Charts</title>
-  <link rel="stylesheet" href="/static/styles.css" />
-</head>
-<body>
-  <nav class="nav-bar">
-    <div class="nav-brand">Factory Analytics</div>
-    <div class="nav-links">
-      <a href="/dashboard">Dashboard</a>
-      <a href="/settings">Settings</a>
-      <a href="/history">History</a>
-      <a href="/processed-events">Processed Events</a>
-      <a href="/charts" class="nav-active">Charts</a>
-      <a href="/logs">Logs</a>
-    </div>
-  </nav>
-  <main>
-    <section class="card">
-      <h2>Charts</h2>
-      <div class="grid two-col">
-        <section>
-          <h3>Heatmap</h3>
-          <div id="heatmapView"></div>
-        </section>
-        <section>
-          <h3>Shift Summary</h3>
-          <div id="shiftSummaryView"></div>
-        </section>
-        <section>
-          <h3>Camera Summary</h3>
-          <div id="cameraSummaryView"></div>
-        </section>
-        <section>
-          <h3>Job Failures</h3>
-          <div id="jobFailuresView"></div>
-        </section>
-        <section>
-          <h3>Confidence Distribution</h3>
-          <div id="confidenceDistributionView"></div>
-        </section>
+{% extends "partials/base.html" %}
+{% block title %}Charts{% endblock %}
+{% block content %}
+<main class="flex-1 p-8 bg-surface-dim">
+<header class="mb-8">
+<h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Analytics Dashboards</h1>
+<p class="text-on-surface-variant font-body">Deep insights into factory telemetry, performance, and incidents.</p>
+</header>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-primary">map</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Heatmap</h2>
       </div>
+      <div id="heatmapView" class="h-64 w-full bg-surface-container-lowest rounded-md"></div>
     </section>
-  </main>
-  <script src="/static/charts.js"></script>
-</body>
-</html>
+
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-secondary">schedule</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Shift Summary</h2>
+      </div>
+      <div id="shiftSummaryView" class="h-64 w-full bg-surface-container-lowest rounded-md"></div>
+    </section>
+
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-tertiary">videocam</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Camera Summary</h2>
+      </div>
+      <div id="cameraSummaryView" class="h-64 w-full bg-surface-container-lowest rounded-md"></div>
+    </section>
+
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-error">warning</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Job Failures</h2>
+      </div>
+      <div id="jobFailuresView" class="h-64 w-full bg-surface-container-lowest rounded-md"></div>
+    </section>
+
+    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 lg:col-span-2">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-primary">analytics</span>
+        <h2 class="font-headline font-bold text-lg tracking-tight">Confidence Distribution</h2>
+      </div>
+      <div id="confidenceDistributionView" class="h-64 w-full bg-surface-container-lowest rounded-md"></div>
+    </section>
+</div>
+</main>
+<script src="/static/charts.js"></script>
+{% endblock %}
