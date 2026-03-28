@@ -96,6 +96,8 @@ class Database:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     group_type TEXT NOT NULL,
                     name TEXT NOT NULL,
+                    interval_seconds INTEGER DEFAULT 300,
+                    last_run_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     UNIQUE(group_type, name)
@@ -265,6 +267,26 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
+    def update_group(
+        self, group_id: int, group_type: str | None = None, name: str | None = None
+    ) -> dict[str, Any] | None:
+        group = self.get_group(group_id)
+        if not group:
+            return None
+        next_type = group_type or group["group_type"]
+        next_name = name or group["name"]
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE groups SET group_type=?, name=?, updated_at=? WHERE id=?",
+                (next_type, next_name, utcnow(), group_id),
+            )
+        return self.get_group(group_id)
+
+    def delete_group(self, group_id: int) -> dict[str, Any]:
+        with self.connect() as conn:
+            cur = conn.execute("DELETE FROM groups WHERE id=?", (group_id,))
+        return {"deleted": bool(cur.rowcount), "group_id": group_id}
+
     def add_camera_to_group(self, camera_id: int, group_id: int) -> dict[str, Any]:
         with self.connect() as conn:
             conn.execute(
@@ -357,12 +379,31 @@ class Database:
             job_id = cur.lastrowid
         return self.get_job(job_id)
 
+    def schedule_group_job(
+        self,
+        group_id: int,
+        anchor_camera_id: int,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        merged_payload = {**(payload or {}), "group_id": group_id}
+        return self.schedule_job(
+            anchor_camera_id, job_type="group_analysis", payload=merged_payload
+        )
+
     def next_pending_job(self) -> dict[str, Any] | None:
         with self.connect() as conn:
             row = conn.execute(
                 'SELECT * FROM jobs WHERE status="pending" ORDER BY id LIMIT 1'
             ).fetchone()
             return dict(row) if row else None
+
+    def has_active_job(self, camera_id: int, job_type: str = "analysis") -> bool:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM jobs WHERE camera_id=? AND job_type=? AND status IN ('pending','running') LIMIT 1",
+                (camera_id, job_type),
+            ).fetchone()
+            return row is not None
 
     def mark_job_running(self, job_id: int):
         with self.connect() as conn:
@@ -524,11 +565,25 @@ class Database:
     def get_segment(self, segment_id: int) -> dict[str, Any] | None:
         with self.connect() as conn:
             row = conn.execute(
-                """SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name
-                   FROM segments s JOIN cameras c ON c.id = s.camera_id WHERE s.id=?""",
+                """SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
+                          j.job_type, j.raw_result, j.payload_json
+                   FROM segments s
+                   JOIN cameras c ON c.id = s.camera_id
+                   JOIN jobs j ON j.id = s.job_id
+                   WHERE s.id=?""",
                 (segment_id,),
             ).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            item = dict(row)
+            raw_result = item.get("raw_result")
+            item["raw_result"] = json.loads(raw_result) if raw_result else {}
+            payload_json = item.get("payload_json")
+            item["payload_json"] = json.loads(payload_json) if payload_json else {}
+            item["group_name"] = item["raw_result"].get("group_name")
+            item["group_type"] = item["raw_result"].get("group_type")
+            item["group_id"] = item["raw_result"].get("group_id")
+            return item
 
     def list_segments(
         self,
@@ -559,11 +614,25 @@ class Database:
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         with self.connect() as conn:
             rows = conn.execute(
-                f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name
-                   FROM segments s JOIN cameras c ON c.id = s.camera_id{where} ORDER BY s.id DESC LIMIT ?""",
+                f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
+                          j.job_type, j.raw_result, j.payload_json
+                   FROM segments s
+                   JOIN cameras c ON c.id = s.camera_id
+                   JOIN jobs j ON j.id = s.job_id{where} ORDER BY s.id DESC LIMIT ?""",
                 (*params, limit),
             ).fetchall()
-            return [dict(row) for row in rows]
+            items = []
+            for row in rows:
+                item = dict(row)
+                raw_result = item.get("raw_result")
+                item["raw_result"] = json.loads(raw_result) if raw_result else {}
+                payload_json = item.get("payload_json")
+                item["payload_json"] = json.loads(payload_json) if payload_json else {}
+                item["group_name"] = item["raw_result"].get("group_name")
+                item["group_type"] = item["raw_result"].get("group_type")
+                item["group_id"] = item["raw_result"].get("group_id")
+                items.append(item)
+            return items
 
     def list_segments_paginated(
         self,
@@ -614,12 +683,25 @@ class Database:
                 params,
             ).fetchone()[0]
             rows = conn.execute(
-                f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name
-                   FROM segments s JOIN cameras c ON c.id = s.camera_id{where}
+                f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
+                          j.job_type, j.raw_result, j.payload_json
+                   FROM segments s
+                   JOIN cameras c ON c.id = s.camera_id
+                   JOIN jobs j ON j.id = s.job_id{where}
                    ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?""",
                 (*params, page_size, offset),
             ).fetchall()
-        items = [dict(row) for row in rows]
+        items = []
+        for row in rows:
+            item = dict(row)
+            raw_result = item.get("raw_result")
+            item["raw_result"] = json.loads(raw_result) if raw_result else {}
+            payload_json = item.get("payload_json")
+            item["payload_json"] = json.loads(payload_json) if payload_json else {}
+            item["group_name"] = item["raw_result"].get("group_name")
+            item["group_type"] = item["raw_result"].get("group_type")
+            item["group_id"] = item["raw_result"].get("group_id")
+            items.append(item)
         if shift in {"day", "night"}:
             items = [
                 item
