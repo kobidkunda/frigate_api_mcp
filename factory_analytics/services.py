@@ -127,13 +127,43 @@ class AnalyticsService:
     def list_cameras(self):
         return self.db.list_cameras()
 
-    def create_group(self, group_type: str, name: str):
-        group = self.db.create_group(group_type, name)
+    def get_camera(self, camera_id: int):
+        return self.db.get_camera(camera_id)
+
+    def create_group(self, group_type: str, name: str, interval_seconds: int = 300):
+        group = self.db.create_group(group_type, name, interval_seconds)
         self.db.log_audit("api", "group.create", "group", str(group["id"]), group)
         return group
 
     def list_groups(self):
         return self.db.list_groups()
+
+    def update_group(
+        self,
+        group_id: int,
+        group_type: str | None = None,
+        name: str | None = None,
+        interval_seconds: int | None = None,
+    ):
+        group = self.db.update_group(group_id, group_type, name, interval_seconds)
+        if group:
+            self.db.log_audit(
+                "api",
+                "group.update",
+                "group",
+                str(group_id),
+                {
+                    "group_type": group_type,
+                    "name": name,
+                    "interval_seconds": interval_seconds,
+                },
+            )
+        return group
+
+    def delete_group(self, group_id: int):
+        result = self.db.delete_group(group_id)
+        self.db.log_audit("api", "group.delete", "group", str(group_id), result)
+        return result
 
     def add_camera_to_group(self, group_id: int, camera_id: int):
         group = self.db.get_group(group_id)
@@ -174,27 +204,84 @@ class AnalyticsService:
             raise RuntimeError("Group not found")
         if not cameras:
             raise RuntimeError("Group has no cameras")
+        anchor_camera = cameras[0]
         snapshots = []
+        included_cameras: list[str] = []
+        missing_cameras: list[str] = []
         for camera in cameras:
-            snapshots.append(
-                (
-                    camera["frigate_name"],
-                    self._capture_snapshot(camera["frigate_name"]),
-                )
+            try:
+                snapshot = self._capture_snapshot(camera["frigate_name"])
+                snapshots.append((camera["frigate_name"], snapshot))
+                included_cameras.append(camera["frigate_name"])
+            except Exception:
+                missing_cameras.append(camera["frigate_name"])
+        if not snapshots:
+            raise RuntimeError("All group camera snapshots failed")
+        job = self.db.schedule_group_job(
+            group_id=group_id,
+            anchor_camera_id=anchor_camera["id"],
+            payload={
+                "included_cameras": included_cameras,
+                "missing_cameras": missing_cameras,
+                "group_name": group["name"],
+                "group_type": group["group_type"],
+            },
+        )
+        self.db.mark_job_running(job["id"])
+        try:
+            composite = self._group_composite_path(group["group_type"], group["name"])
+            composite = merge_group_snapshots(snapshots, composite)
+            result = self.ollama_client().classify_group_image(composite)
+            annotated = self._group_annotated_path(group["group_type"], group["name"])
+            draw_person_boxes(composite, annotated, result.get("boxes", []))
+            notes = result.get("notes", "")
+            if missing_cameras:
+                suffix = f" Missing cameras: {', '.join(missing_cameras)}."
+                notes = f"{notes}{suffix}".strip()
+            start_ts = datetime.now(timezone.utc).isoformat()
+            end_ts = start_ts
+            segment = self.db.create_segment(
+                job_id=job["id"],
+                camera_id=anchor_camera["id"],
+                start_ts=start_ts,
+                end_ts=end_ts,
+                label=result["label"],
+                confidence=float(result["confidence"]),
+                notes=notes,
+                evidence_path=str(annotated.relative_to(DATA_ROOT.parent)),
             )
-        composite = self._group_composite_path(group["group_type"], group["name"])
-        composite = merge_group_snapshots(snapshots, composite)
-        result = self.ollama_client().classify_image(composite)
-        annotated = self._group_annotated_path(group["group_type"], group["name"])
-        draw_person_boxes(composite, annotated, result.get("boxes", []))
-        return {
-            "ok": True,
-            "group": group,
-            "camera_count": len(cameras),
-            "label": result["label"],
-            "confidence": result["confidence"],
-            "evidence_path": str(annotated.relative_to(DATA_ROOT.parent)),
-        }
+            stored_result = {
+                **result,
+                "notes": notes,
+                "included_cameras": included_cameras,
+                "missing_cameras": missing_cameras,
+                "group_id": group_id,
+                "group_name": group["name"],
+                "group_type": group["group_type"],
+                "segment_id": segment["id"],
+            }
+            self.db.mark_job_finished(
+                job["id"],
+                "success",
+                raw_result=stored_result,
+                snapshot_path=str(annotated.relative_to(DATA_ROOT.parent)),
+            )
+            return {
+                "ok": True,
+                "group": group,
+                "job_id": job["id"],
+                "segment_id": segment["id"],
+                "camera_count": len(included_cameras),
+                "included_cameras": included_cameras,
+                "missing_cameras": missing_cameras,
+                "label": result["label"],
+                "confidence": result["confidence"],
+                "notes": notes,
+                "evidence_path": str(annotated.relative_to(DATA_ROOT.parent)),
+            }
+        except Exception as exc:
+            self.db.mark_job_finished(job["id"], "failed", error=str(exc))
+            raise
 
     def test_ollama_vision(self):
         settings = self.settings()

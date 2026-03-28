@@ -96,3 +96,14 @@ def test_has_active_group_jobs(tmp_path: Path):
     
     # Should have active jobs now
     assert db.has_active_group_jobs(group["id"])
+
+def test_create_group_with_interval(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    group = db.create_group("machine", "test_group", interval_seconds=600)
+    assert group["interval_seconds"] == 600
+
+def test_update_group_interval(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    group = db.create_group("machine", "test_group")
+    updated = db.update_group(group["id"], interval_seconds=900)
+    assert updated["interval_seconds"] == 900

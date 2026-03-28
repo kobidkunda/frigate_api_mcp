@@ -232,14 +232,16 @@ class Database:
             rows = conn.execute("SELECT * FROM cameras ORDER BY id").fetchall()
             return [dict(row) for row in rows]
 
-    def create_group(self, group_type: str, name: str) -> dict[str, Any]:
+    def create_group(
+        self, group_type: str, name: str, interval_seconds: int = 300
+    ) -> dict[str, Any]:
         now = utcnow()
         with self.connect() as conn:
             conn.execute(
-                """INSERT INTO groups(group_type, name, created_at, updated_at)
-                   VALUES (?, ?, ?, ?)
-                   ON CONFLICT(group_type, name) DO UPDATE SET updated_at=excluded.updated_at""",
-                (group_type, name, now, now),
+                """INSERT INTO groups(group_type, name, interval_seconds, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(group_type, name) DO UPDATE SET updated_at=excluded.updated_at, interval_seconds=excluded.interval_seconds""",
+                (group_type, name, interval_seconds, now, now),
             )
         return self.get_group_by_type_name(group_type, name)
 
@@ -268,17 +270,35 @@ class Database:
             return dict(row) if row else None
 
     def update_group(
-        self, group_id: int, group_type: str | None = None, name: str | None = None
+        self,
+        group_id: int,
+        group_type: str | None = None,
+        name: str | None = None,
+        interval_seconds: int | None = None,
+        last_run_at: str | None = None,
     ) -> dict[str, Any] | None:
         group = self.get_group(group_id)
         if not group:
             return None
         next_type = group_type or group["group_type"]
         next_name = name or group["name"]
+        next_interval = (
+            interval_seconds
+            if interval_seconds is not None
+            else group["interval_seconds"]
+        )
+        next_last_run = last_run_at if last_run_at is not None else group["last_run_at"]
         with self.connect() as conn:
             conn.execute(
-                "UPDATE groups SET group_type=?, name=?, updated_at=? WHERE id=?",
-                (next_type, next_name, utcnow(), group_id),
+                "UPDATE groups SET group_type=?, name=?, interval_seconds=?, last_run_at=?, updated_at=? WHERE id=?",
+                (
+                    next_type,
+                    next_name,
+                    next_interval,
+                    next_last_run,
+                    utcnow(),
+                    group_id,
+                ),
             )
         return self.get_group(group_id)
 
