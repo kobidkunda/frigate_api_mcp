@@ -38,6 +38,10 @@ DEFAULT_SETTINGS = {
     "public_base_url": PUBLIC_BASE_URL,
     "host_bind": "0.0.0.0",
     "frigate_snapshot_timeout_sec": 30,
+    "group_scheduler_enabled": True,
+    "group_analysis_interval_seconds": 300,
+    "group_retry_attempts": 3,
+    "group_retry_delay_seconds": 60,
 }
 
 
