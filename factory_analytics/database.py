@@ -424,6 +424,19 @@ class Database:
             ).fetchone()
             return row is not None
 
+    def has_active_group_jobs(self, group_id: int) -> bool:
+        with self.connect() as conn:
+            cur = conn.execute(
+                """
+                SELECT COUNT(*) FROM jobs 
+                WHERE status IN ('pending', 'running')
+                AND json_extract(payload_json, '$.group_id') = ?
+                """,
+                (group_id,),
+            )
+            count = cur.fetchone()[0]
+            return count > 0
+
     def mark_job_running(self, job_id: int):
         with self.connect() as conn:
             conn.execute(
