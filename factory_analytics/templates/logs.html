@@ -1,7 +1,6 @@
 {% extends "partials/base.html" %}
 {% block title %}Logs{% endblock %}
 {% block content %}
-<main class="flex-1 p-8 bg-surface-dim">
 <header class="mb-8">
 <h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">System Logs</h1>
 <p class="text-on-surface-variant font-body">Real-time application telemetry.</p>
@@ -39,7 +38,6 @@
 </div>
 </div>
 </section>
-</main>
 <script>
     let currentLog = 'api';
     let autoRefreshInterval = null;

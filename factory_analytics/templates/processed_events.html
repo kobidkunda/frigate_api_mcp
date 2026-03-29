@@ -1,7 +1,6 @@
 {% extends "partials/base.html" %}
 {% block title %}Processed Events{% endblock %}
 {% block content %}
-<main class="flex-1 p-8 bg-surface-dim">
 <header class="mb-8">
 <h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Processed Events</h1>
 <p class="text-on-surface-variant font-body">Deep temporal analysis of AI classification events and camera telemetry.</p>
@@ -64,7 +63,7 @@
 </form>
 </section>
 <!-- Data Grid / Table -->
-<section class="bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/5 shadow-2xl relative min-h-[400px]">
+<section class="bg-surface-container-low rounded-xl border border-outline-variant/5 shadow-2xl relative min-h-[400px]">
 <div id="processedEventsTable" class="overflow-x-auto p-4"></div>
 <div class="flex justify-between items-center p-4 border-t border-outline-variant/10 bg-surface-container-lowest">
 <button type="button" id="page-prev" class="px-4 py-2 bg-surface-container hover:bg-surface-bright rounded text-sm font-label uppercase tracking-widest transition-colors">Prev</button>
@@ -72,6 +71,5 @@
 <button type="button" id="page-next" class="px-4 py-2 bg-surface-container hover:bg-surface-bright rounded text-sm font-label uppercase tracking-widest transition-colors">Next</button>
 </div>
 </section>
-</main>
 <script src="/static/processed_events.js"></script>
 {% endblock %}

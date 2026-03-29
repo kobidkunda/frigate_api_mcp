@@ -1,9 +1,11 @@
-let appTimezone = 'UTC';
+if (typeof window.appTimezone === 'undefined') {
+  window.appTimezone = 'UTC';
+}
 
 async function api(url, options = {}) { const res = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }); if (!res.ok) { const text = await res.text(); throw new Error(text || `Request failed: ${res.status}`);} return await res.json(); }
-function fmtTs(ts){ if(!ts) return ''; try { const d = new Date(ts); return new Intl.DateTimeFormat('en-GB', { timeZone: appTimezone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(d); } catch(_) { return ts; } }
+function fmtTs(ts){ if(!ts) return ''; try { const d = new Date(ts); return new Intl.DateTimeFormat('en-GB', { timeZone: window.appTimezone || 'UTC', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(d); } catch(_) { return ts; } }
 function fmtSec(sec){ sec=Number(sec||0); const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); return `${h}h ${m}m`; }
-async function loadSettings(){ const data=await api('/api/settings'); appTimezone = data.timezone || 'UTC'; const form=document.getElementById('settingsForm'); if(form){ Object.entries(data).forEach(([k,v])=>{ const field=form.elements.namedItem(k); if(!field) return; field.value=typeof v==='boolean'?String(v):v;}); } }
+async function loadSettings(){ const data=await api('/api/settings'); window.appTimezone = data.timezone || 'UTC'; const form=document.getElementById('settingsForm'); if(form){ Object.entries(data).forEach(([k,v])=>{ const field=form.elements.namedItem(k); if(!field) return; field.value=typeof v==='boolean'?String(v):v;}); } }
 async function saveSettings(ev){ ev.preventDefault(); const fd=new FormData(ev.target); const values=Object.fromEntries(fd.entries()); values.frigate_verify_tls = values.frigate_verify_tls === 'true'; values.scheduler_enabled = values.scheduler_enabled === 'true'; values.ollama_enabled = values.ollama_enabled === 'true'; values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); await api('/api/settings',{method:'PUT',body:JSON.stringify({values})}); await refreshAll(); alert('Settings saved'); }
 
 async function testOllamaVision(){

@@ -16,7 +16,7 @@
   {% include "partials/top_nav.html" %}
   <div class="flex min-h-screen">
     {% include "partials/sidebar.html" %}
-    <main id="main" class="flex-1 p-4 md:p-8 space-y-8 md:ml-64" role="main">
+    <main id="main" class="flex-1 min-h-screen p-4 md:p-8 space-y-8 md:ml-64 bg-surface-dim" role="main">
       {% block content %}{% endblock %}
     </main>
   </div>

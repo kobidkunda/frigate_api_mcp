@@ -24,6 +24,9 @@
 ## Blocked
 
 ## Done
+- [x] Fix layout viewport overflow and redundant `<main>` tags
+  - Done: 2026-03-29
+  - Related: docs/implementation/2026-03-29-layout-overflow-fix.md
 - [x] Stitch UI/UX design refresh
   - Done: 2026-03-29
   - Related: docs/implementation/2026-03-29-stitch-update.md
