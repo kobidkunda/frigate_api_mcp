@@ -328,6 +328,29 @@ class AnalyticsService:
                 "camera": camera["frigate_name"],
             }
 
+    def test_ollama_api(self) -> dict[str, Any]:
+        settings = self.settings()
+        health = self.ollama_client().health()
+        if not health.get("ok"):
+            return {
+                "ok": False,
+                "message": f"Ollama unreachable: {health.get('message', 'unknown error')}",
+            }
+        model = settings.get("ollama_vision_model")
+        models = set(health.get("models") or [])
+        model_found = model in models
+        return {
+            "ok": True,
+            "model_found": model_found,
+            "message": "API reachable"
+            + (
+                f" (Model '{model}' found)"
+                if model_found
+                else f" (Model '{model}' NOT found)"
+            ),
+            "available_models": list(models),
+        }
+
     def update_camera(self, camera_id: int, payload: dict[str, Any]):
         camera = self.db.update_camera(camera_id, payload)
         self.db.log_audit("api", "camera.update", "camera", str(camera_id), payload)
