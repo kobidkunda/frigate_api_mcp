@@ -42,6 +42,11 @@ DEFAULT_SETTINGS = {
     "group_analysis_interval_seconds": 300,
     "group_retry_attempts": 3,
     "group_retry_delay_seconds": 60,
+    # NEW: LLM image sampling & optimization settings
+    "llm_frames_per_process": 1,
+    "llm_seconds_window": 3,
+    "image_resize_resolution": "original",
+    "image_compression_quality": 100,
 }
 
 
@@ -528,6 +533,7 @@ class Database:
         sort_dir: str = "desc",
         tz_name: str = "UTC",
         group_id: int | None = None,
+        job_type: str | None = None,
     ) -> dict[str, Any]:
         conditions = []
         params: list[Any] = []
@@ -542,6 +548,9 @@ class Database:
                 "EXISTS (SELECT 1 FROM camera_groups cg WHERE cg.camera_id = j.camera_id AND cg.group_id = ?)"
             )
             params.append(group_id)
+        if job_type is not None:
+            conditions.append("j.job_type = ?")
+            params.append(job_type)
         if from_ts is not None:
             conditions.append(
                 "COALESCE(j.finished_at, j.started_at, j.scheduled_for, j.created_at) >= ?"
@@ -963,3 +972,441 @@ class Database:
             "per_camera": per_camera,
             "recent_segments": [dict(row) for row in segments],
         }
+
+    def efficiency_heatmap_minute(
+        self, date: str, camera_id: int | None = None
+    ) -> dict[str, Any]:
+        """Get per-minute efficiency data for a specific date (active cameras only)."""
+        with self.connect() as conn:
+            # Build query conditions - only include active cameras
+            conditions = ["DATE(s.start_ts) = ?", "c.enabled = 1"]
+            params = [date]
+
+            if camera_id is not None:
+                conditions.append("s.camera_id = ?")
+                params.append(camera_id)
+
+            where_clause = " AND ".join(conditions)
+
+            # Get segments with minute-level granularity
+            rows = conn.execute(
+                f"""SELECT
+                    s.id AS segment_id,
+                    c.name AS camera_name,
+                    c.id AS camera_id,
+                    strftime('%H', s.start_ts) AS hour,
+                    strftime('%M', s.start_ts) AS minute,
+                    s.label,
+                    s.confidence,
+                    s.start_ts,
+                    s.end_ts,
+                    ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60) AS duration_minutes
+                FROM segments s
+                JOIN cameras c ON c.id = s.camera_id
+                WHERE {where_clause}
+                ORDER BY c.name, s.start_ts""",
+                params,
+            ).fetchall()
+
+            return {"rows": [dict(row) for row in rows], "date": date}
+
+    def efficiency_summary(
+        self, from_date: str, to_date: str, camera_id: int | None = None
+    ) -> dict[str, Any]:
+        """Get efficiency summary for a date range."""
+        with self.connect() as conn:
+            conditions = ["DATE(s.start_ts) >= ? AND DATE(s.start_ts) <= ?"]
+            params = [from_date, to_date]
+
+            if camera_id is not None:
+                conditions.append("s.camera_id = ?")
+                params.append(camera_id)
+
+            where_clause = " AND ".join(conditions)
+
+            # Overall summary
+            summary = conn.execute(
+                f"""SELECT 
+                    COUNT(*) AS total_segments,
+                    SUM(CASE WHEN s.label = 'working' THEN 1 ELSE 0 END) AS working_count,
+                    SUM(CASE WHEN s.label = 'idle' THEN 1 ELSE 0 END) AS idle_count,
+                    SUM(CASE WHEN s.label = 'stopped' THEN 1 ELSE 0 END) AS stopped_count,
+                    SUM(CASE WHEN s.label = 'uncertain' THEN 1 ELSE 0 END) AS uncertain_count,
+                    AVG(CASE WHEN s.label = 'working' THEN s.confidence ELSE NULL END) AS avg_working_confidence,
+                    COUNT(DISTINCT s.camera_id) AS active_cameras,
+                    ROUND(SUM(
+                        CASE 
+                            WHEN s.label = 'working' THEN (julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60
+                            ELSE 0 
+                        END
+                    ), 2) AS total_working_minutes,
+                    ROUND(SUM(
+                        CASE 
+                            WHEN s.label = 'idle' THEN (julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60
+                            ELSE 0 
+                        END
+                    ), 2) AS total_idle_minutes
+                FROM segments s
+                WHERE {where_clause}""",
+                params,
+            ).fetchone()
+
+            # Per-camera breakdown
+            camera_breakdown = conn.execute(
+                f"""SELECT 
+                    c.name AS camera_name,
+                    c.id AS camera_id,
+                    COUNT(*) AS total_segments,
+                    SUM(CASE WHEN s.label = 'working' THEN 1 ELSE 0 END) AS working_count,
+                    SUM(CASE WHEN s.label = 'idle' THEN 1 ELSE 0 END) AS idle_count,
+                    SUM(CASE WHEN s.label = 'stopped' THEN 1 ELSE 0 END) AS stopped_count,
+                    ROUND(AVG(CASE WHEN s.label = 'working' THEN s.confidence ELSE NULL END) * 100, 1) AS efficiency_pct
+                FROM segments s
+                JOIN cameras c ON c.id = s.camera_id
+                WHERE {where_clause}
+                GROUP BY c.id, c.name
+                ORDER BY efficiency_pct DESC""",
+                params,
+            ).fetchall()
+
+            # Shift breakdown (day: 06:00-18:00, night: 18:00-06:00)
+            shift_data = conn.execute(
+                f"""SELECT 
+                    CASE 
+                        WHEN CAST(strftime('%H', s.start_ts) AS INTEGER) BETWEEN 6 AND 17 THEN 'day'
+                        ELSE 'night'
+                    END AS shift,
+                    COUNT(*) AS total_segments,
+                    SUM(CASE WHEN s.label = 'working' THEN 1 ELSE 0 END) AS working_count,
+                    ROUND(AVG(CASE WHEN s.label = 'working' THEN s.confidence ELSE NULL END) * 100, 1) AS efficiency_pct
+                FROM segments s
+                WHERE {where_clause}
+                GROUP BY shift""",
+                params,
+            ).fetchall()
+
+            return {
+                "summary": dict(summary) if summary else {},
+                "camera_breakdown": [dict(row) for row in camera_breakdown],
+                "shift_breakdown": [dict(row) for row in shift_data],
+                "date_range": {"from": from_date, "to": to_date},
+            }
+
+    def efficiency_heatmap_daily(
+        self, from_date: str, to_date: str, camera_id: int | None = None
+    ) -> dict[str, Any]:
+        """Get daily aggregated efficiency data for heatmap visualization."""
+        with self.connect() as conn:
+            conditions = ["DATE(s.start_ts) >= ? AND DATE(s.start_ts) <= ?"]
+            params = [from_date, to_date]
+
+            if camera_id is not None:
+                conditions.append("s.camera_id = ?")
+                params.append(camera_id)
+
+            where_clause = " AND ".join(conditions)
+
+            rows = conn.execute(
+                f"""SELECT 
+                    DATE(s.start_ts) AS date,
+                    c.name AS camera_name,
+                    c.id AS camera_id,
+                    strftime('%H', s.start_ts) AS hour,
+                    s.label,
+                    COUNT(*) AS count,
+                    ROUND(AVG(s.confidence) * 100, 1) AS avg_confidence,
+                    ROUND(SUM(
+                        (julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60
+                    ), 2) AS total_minutes
+                FROM segments s
+                JOIN cameras c ON c.id = s.camera_id
+                WHERE {where_clause}
+                GROUP BY date, c.id, hour, s.label
+                ORDER BY date, c.name, hour""",
+                params,
+            ).fetchall()
+
+            return {"rows": [dict(row) for row in rows]}
+
+    def efficiency_timeline(
+        self,
+        date: str,
+        camera_id: int | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> dict[str, Any]:
+        """Get timeline of activity for a specific date."""
+        with self.connect() as conn:
+            conditions = ["DATE(s.start_ts) = ?"]
+            params = [date]
+
+            if camera_id is not None:
+                conditions.append("s.camera_id = ?")
+                params.append(camera_id)
+
+            where_clause = " AND ".join(conditions)
+            offset = (page - 1) * page_size
+
+            # Count total
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM segments s WHERE {where_clause}", params
+            ).fetchone()[0]
+
+            # Get paginated results
+            rows = conn.execute(
+                f"""SELECT 
+                    s.id,
+                    s.start_ts,
+                    s.end_ts,
+                    s.label,
+                    s.confidence,
+                    ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60, 1) AS duration_minutes,
+                    c.name AS camera_name,
+                    c.id AS camera_id
+                FROM segments s
+                JOIN cameras c ON c.id = s.camera_id
+                WHERE {where_clause}
+                ORDER BY s.start_ts DESC
+                LIMIT ? OFFSET ?""",
+                params + [page_size, offset],
+            ).fetchall()
+
+            return {
+                "items": [dict(row) for row in rows],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": max(1, (total + page_size - 1) // page_size),
+            }
+
+    def efficiency_heatmap_chart(
+        self,
+        from_date: str,
+        to_date: str,
+        view: str = "daily",
+    ) -> dict[str, Any]:
+        """Get heatmap chart data for enabled cameras in groups, formatted for ApexCharts."""
+        with self.connect() as conn:
+            # Get enabled cameras in groups
+            group_cameras = conn.execute(
+                """SELECT DISTINCT c.id, c.name, g.name AS group_name, g.id AS group_id
+                   FROM cameras c
+                   JOIN camera_groups cg ON cg.camera_id = c.id
+                   JOIN groups g ON g.id = cg.group_id
+                   WHERE c.enabled = 1
+                   ORDER BY g.name, c.name"""
+            ).fetchall()
+
+            if not group_cameras:
+                return {"series": [], "categories": [], "segments": {}}
+
+            camera_ids = [row["id"] for row in group_cameras]
+            camera_labels = {}
+            for row in group_cameras:
+                camera_labels[row["id"]] = f"{row['name']} ({row['group_name']})"
+
+            if view == "daily":
+                # Per-hour data for the given date
+                placeholders = ",".join("?" * len(camera_ids))
+                rows = conn.execute(
+                    f"""SELECT s.camera_id,
+                               strftime('%H', s.start_ts) AS hour,
+                               s.label,
+                               COUNT(*) AS count,
+                               AVG(s.confidence) AS avg_confidence,
+                               SUM(ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60, 1)) AS total_minutes,
+                               GROUP_CONCAT(s.id) AS segment_ids
+                        FROM segments s
+                        WHERE DATE(s.start_ts) = ?
+                          AND s.camera_id IN ({placeholders})
+                        GROUP BY s.camera_id, hour, s.label
+                        ORDER BY s.camera_id, hour""",
+                    [from_date] + camera_ids,
+                ).fetchall()
+
+                categories = [f"{h:02d}:00" for h in range(24)]
+                # Build series data: per camera, per hour, with dominant label and score
+                series_data = {}
+                segment_refs = {}
+                for cam_id in camera_ids:
+                    label = camera_labels[cam_id]
+                    series_data[label] = {
+                        h: {
+                            "score": 0,
+                            "label": "stopped",
+                            "confidence": 0,
+                            "count": 0,
+                            "minutes": 0,
+                            "segment_ids": "",
+                        }
+                        for h in range(24)
+                    }
+                    segment_refs[label] = {h: [] for h in range(24)}
+
+                label_scores = {
+                    "working": 5,
+                    "idle": 3,
+                    "operator_missing": 2,
+                    "stopped": 1,
+                    "uncertain": 0,
+                    "error": 0,
+                }
+
+                for row in rows:
+                    cam_label = camera_labels[row["camera_id"]]
+                    hour = int(row["hour"])
+                    row_score = label_scores.get(row["label"], 0)
+                    existing = series_data[cam_label][hour]
+                    if row_score > existing["score"]:
+                        series_data[cam_label][hour] = {
+                            "score": row_score,
+                            "label": row["label"],
+                            "confidence": round((row["avg_confidence"] or 0) * 100, 1),
+                            "count": row["count"],
+                            "minutes": round(row["total_minutes"] or 0, 1),
+                            "segment_ids": row["segment_ids"] or "",
+                        }
+                    segment_refs[cam_label][hour] = (
+                        row["segment_ids"].split(",") if row["segment_ids"] else []
+                    )
+
+                series = []
+                for cam_label, hours_data in series_data.items():
+                    data_points = []
+                    for h in range(24):
+                        cell = hours_data[h]
+                        data_points.append(
+                            {
+                                "x": categories[h],
+                                "y": cell["score"],
+                                "meta": {
+                                    "label": cell["label"],
+                                    "confidence": cell["confidence"],
+                                    "count": cell["count"],
+                                    "minutes": cell["minutes"],
+                                    "segment_ids": segment_refs[cam_label][h],
+                                    "camera": cam_label,
+                                    "time": categories[h],
+                                },
+                            }
+                        )
+                    series.append({"name": cam_label, "data": data_points})
+
+                return {
+                    "series": series,
+                    "categories": categories,
+                    "shift_markers": [6, 18],
+                }
+
+            else:
+                # Weekly or monthly: per-day data
+                placeholders = ",".join("?" * len(camera_ids))
+                rows = conn.execute(
+                    f"""SELECT s.camera_id,
+                               DATE(s.start_ts) AS date,
+                               s.label,
+                               COUNT(*) AS count,
+                               AVG(s.confidence) AS avg_confidence,
+                               SUM(ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60, 1)) AS total_minutes,
+                               GROUP_CONCAT(s.id) AS segment_ids
+                        FROM segments s
+                        WHERE DATE(s.start_ts) >= ? AND DATE(s.start_ts) <= ?
+                          AND s.camera_id IN ({placeholders})
+                        GROUP BY s.camera_id, date, s.label
+                        ORDER BY s.camera_id, date""",
+                    [from_date, to_date] + camera_ids,
+                ).fetchall()
+
+                # Build date range
+                from datetime import datetime as dt, timedelta
+
+                start = dt.strptime(from_date, "%Y-%m-%d")
+                end = dt.strptime(to_date, "%Y-%m-%d")
+                dates = []
+                d = start
+                while d <= end:
+                    dates.append(d.strftime("%Y-%m-%d"))
+                    d += timedelta(days=1)
+
+                categories = [
+                    dt.strptime(ds, "%Y-%m-%d").strftime("%b %d") for ds in dates
+                ]
+
+                label_scores = {
+                    "working": 5,
+                    "idle": 3,
+                    "operator_missing": 2,
+                    "stopped": 1,
+                    "uncertain": 0,
+                    "error": 0,
+                }
+
+                series_data = {}
+                segment_refs = {}
+                for cam_id in camera_ids:
+                    label = camera_labels[cam_id]
+                    series_data[label] = {
+                        ds: {
+                            "score": 0,
+                            "label": "stopped",
+                            "confidence": 0,
+                            "count": 0,
+                            "minutes": 0,
+                            "segment_ids": "",
+                        }
+                        for ds in dates
+                    }
+                    segment_refs[label] = {ds: [] for ds in dates}
+
+                for row in rows:
+                    cam_label = camera_labels[row["camera_id"]]
+                    date = row["date"]
+                    if date not in series_data[cam_label]:
+                        continue
+                    row_score = label_scores.get(row["label"], 0)
+                    existing = series_data[cam_label][date]
+                    if row_score > existing["score"]:
+                        series_data[cam_label][date] = {
+                            "score": row_score,
+                            "label": row["label"],
+                            "confidence": round((row["avg_confidence"] or 0) * 100, 1),
+                            "count": row["count"],
+                            "minutes": round(row["total_minutes"] or 0, 1),
+                            "segment_ids": row["segment_ids"] or "",
+                        }
+                    segment_refs[cam_label][date] = (
+                        row["segment_ids"].split(",") if row["segment_ids"] else []
+                    )
+
+                series = []
+                for cam_label, dates_data in series_data.items():
+                    data_points = []
+                    for ds in dates:
+                        cell = dates_data[ds]
+                        cat_label = dt.strptime(ds, "%Y-%m-%d").strftime("%b %d")
+                        data_points.append(
+                            {
+                                "x": cat_label,
+                                "y": cell["score"],
+                                "meta": {
+                                    "label": cell["label"],
+                                    "confidence": cell["confidence"],
+                                    "count": cell["count"],
+                                    "minutes": cell["minutes"],
+                                    "segment_ids": segment_refs[cam_label][ds],
+                                    "camera": cam_label,
+                                    "time": ds,
+                                },
+                            }
+                        )
+                    series.append({"name": cam_label, "data": data_points})
+
+                return {"series": series, "categories": categories, "shift_markers": []}
+
+    def cancel_all_pending_and_running(self) -> dict[str, Any]:
+        with self.connect() as conn:
+            cur = conn.execute(
+                "UPDATE jobs SET status='cancelled', error='Cancelled by user', finished_at=? WHERE status IN ('pending', 'running')",
+                (utcnow(),),
+            )
+            return {"ok": True, "cancelled": cur.rowcount}

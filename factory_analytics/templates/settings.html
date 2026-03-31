@@ -85,6 +85,46 @@
                             </button>
 </div>
 </section>
+<!-- Image Processing Settings -->
+<section class="bg-surface-container-low p-8 rounded-xl shadow-2xl transition-all border border-outline-variant/5">
+    <div class="flex items-center gap-3 mb-8">
+        <span class="material-symbols-outlined text-primary">image_search</span>
+        <h2 class="font-headline text-xl font-bold text-primary">Image Processing</h2>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="flex flex-col gap-2">
+            <label class="font-label text-xs uppercase tracking-widest text-outline">Frames Per Process</label>
+            <input name="llm_frames_per_process" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="number" min="1" max="10" value="1" placeholder="1"/>
+            <p class="text-xs text-on-surface-variant font-label">How many photos to collect per analysis cycle (1 photo/second)</p>
+        </div>
+        <div class="flex flex-col gap-2">
+            <label class="font-label text-xs uppercase tracking-widest text-outline">Collection Window (sec)</label>
+            <input name="llm_seconds_window" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="number" min="1" max="60" value="3" placeholder="3"/>
+            <p class="text-xs text-on-surface-variant font-label">Total seconds to collect frames. Frames collected = seconds (1 photo/sec)</p>
+        </div>
+        <div class="flex flex-col gap-2">
+            <label class="font-label text-xs uppercase tracking-widest text-outline">Resize Resolution</label>
+            <select name="image_resize_resolution" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body">
+                <option value="original">Original (no resize)</option>
+                <option value="320p">320p - Small (320px max edge)</option>
+                <option value="640p">640p - Medium (640px max edge)</option>
+                <option value="720p">720p - Large (720px max edge)</option>
+            </select>
+            <p class="text-xs text-on-surface-variant font-label">Images are resized to this max dimension while preserving aspect ratio</p>
+        </div>
+        <div class="flex flex-col gap-2">
+            <label class="font-label text-xs uppercase tracking-widest text-outline">JPEG Compression Quality</label>
+            <select name="image_compression_quality" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body">
+                <option value="100">100% - None (Recommended)</option>
+                <option value="80">80% - High quality</option>
+                <option value="60">60% - Medium</option>
+                <option value="40">40% - Low</option>
+                <option value="20">20% - Very low</option>
+            </select>
+            <p class="text-xs text-on-surface-variant font-label">Lower quality reduces file size and LLM cost</p>
+        </div>
+    </div>
+</section>
 <!-- Analysis & General Settings -->
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <!-- Analysis Settings -->

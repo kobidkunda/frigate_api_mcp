@@ -11,6 +11,12 @@ from factory_analytics.image_annotations import draw_person_boxes
 from factory_analytics.image_composition import merge_group_snapshots
 from factory_analytics.integrations.frigate import FrigateClient
 from factory_analytics.integrations.ollama import OllamaClient
+from factory_analytics.integrations.image_pipeline import (
+    fetch_frames,
+    resize_pil_image,
+    build_vertical_strip,
+    build_group_collage,
+)
 from factory_analytics.logging_setup import setup_logging
 
 logger = setup_logging()
@@ -204,84 +210,18 @@ class AnalyticsService:
             raise RuntimeError("Group not found")
         if not cameras:
             raise RuntimeError("Group has no cameras")
+
         anchor_camera = cameras[0]
-        snapshots = []
-        included_cameras: list[str] = []
-        missing_cameras: list[str] = []
-        for camera in cameras:
-            try:
-                snapshot = self._capture_snapshot(camera["frigate_name"])
-                snapshots.append((camera["frigate_name"], snapshot))
-                included_cameras.append(camera["frigate_name"])
-            except Exception:
-                missing_cameras.append(camera["frigate_name"])
-        if not snapshots:
-            raise RuntimeError("All group camera snapshots failed")
         job = self.db.schedule_group_job(
+            camera_id=anchor_camera["id"],
             group_id=group_id,
-            anchor_camera_id=anchor_camera["id"],
-            payload={
-                "included_cameras": included_cameras,
-                "missing_cameras": missing_cameras,
-                "group_name": group["name"],
-                "group_type": group["group_type"],
-            },
+            group_type=group["group_type"],
+            group_name=group["name"],
         )
-        self.db.mark_job_running(job["id"])
-        try:
-            composite = self._group_composite_path(group["group_type"], group["name"])
-            composite = merge_group_snapshots(snapshots, composite)
-            result = self.ollama_client().classify_group_image(composite)
-            annotated = self._group_annotated_path(group["group_type"], group["name"])
-            draw_person_boxes(composite, annotated, result.get("boxes", []))
-            notes = result.get("notes", "")
-            if missing_cameras:
-                suffix = f" Missing cameras: {', '.join(missing_cameras)}."
-                notes = f"{notes}{suffix}".strip()
-            start_ts = datetime.now(timezone.utc).isoformat()
-            end_ts = start_ts
-            segment = self.db.create_segment(
-                job_id=job["id"],
-                camera_id=anchor_camera["id"],
-                start_ts=start_ts,
-                end_ts=end_ts,
-                label=result["label"],
-                confidence=float(result["confidence"]),
-                notes=notes,
-                evidence_path=str(annotated.relative_to(DATA_ROOT.parent)),
-            )
-            stored_result = {
-                **result,
-                "notes": notes,
-                "included_cameras": included_cameras,
-                "missing_cameras": missing_cameras,
-                "group_id": group_id,
-                "group_name": group["name"],
-                "group_type": group["group_type"],
-                "segment_id": segment["id"],
-            }
-            self.db.mark_job_finished(
-                job["id"],
-                "success",
-                raw_result=stored_result,
-                snapshot_path=str(annotated.relative_to(DATA_ROOT.parent)),
-            )
-            return {
-                "ok": True,
-                "group": group,
-                "job_id": job["id"],
-                "segment_id": segment["id"],
-                "camera_count": len(included_cameras),
-                "included_cameras": included_cameras,
-                "missing_cameras": missing_cameras,
-                "label": result["label"],
-                "confidence": result["confidence"],
-                "notes": notes,
-                "evidence_path": str(annotated.relative_to(DATA_ROOT.parent)),
-            }
-        except Exception as exc:
-            self.db.mark_job_finished(job["id"], "failed", error=str(exc))
-            raise
+        self.db.log_audit(
+            "api", "job.schedule_group", "job", str(job["id"]), {"group_id": group_id}
+        )
+        return {"ok": True, "job_id": job["id"], "group_id": group_id}
 
     def test_ollama_vision(self):
         settings = self.settings()
@@ -401,12 +341,23 @@ class AnalyticsService:
         if not job:
             return None
         self.db.mark_job_running(job["id"])
+
+        # Handle group_analysis jobs differently
+        if job.get("job_type") == "group_analysis":
+            return self._process_group_job(job)
+
+        return self._process_single_job(job)
+
+    def _process_single_job(self, job: dict[str, Any]) -> dict[str, Any]:
         settings = self.settings()
         camera = self.db.get_camera(job["camera_id"])
         try:
-            snapshot_path = self._capture_snapshot(camera["frigate_name"])
-            result = self.ollama_client().classify_image(snapshot_path)
+            img_settings = self._get_image_settings()
+            snapshot_path = self._process_frame_collection_for_camera(
+                camera, img_settings
+            )
             annotated_path = self._annotated_snapshot_path(camera["frigate_name"])
+            result = self.ollama_client().classify_image(snapshot_path)
             draw_person_boxes(snapshot_path, annotated_path, result.get("boxes", []))
             start_ts, end_ts = self._resolve_job_window(job, camera, settings)
             segment = self.db.create_segment(
@@ -455,6 +406,117 @@ class AnalyticsService:
             )
             self.db.mark_job_finished(job["id"], "failed", error=str(exc))
             return {"job": self.db.get_job(job["id"]), "error": str(exc)}
+
+    def _process_group_job(self, job: dict[str, Any]) -> dict[str, Any]:
+        payload = json.loads(job.get("payload_json") or "{}")
+        group_id = payload.get("group_id")
+        if not group_id:
+            self.db.mark_job_finished(
+                job["id"], "failed", error="Missing group_id in payload"
+            )
+            return {"job": self.db.get_job(job["id"]), "error": "Missing group_id"}
+
+        try:
+            result = self._execute_group_analysis(job, group_id)
+            return result
+        except Exception as exc:
+            logger.exception("Group job processing failed")
+            self.db.mark_job_finished(job["id"], "failed", error=str(exc))
+            return {"job": self.db.get_job(job["id"]), "error": str(exc)}
+
+    def _execute_group_analysis(
+        self, job: dict[str, Any], group_id: int
+    ) -> dict[str, Any]:
+        import shutil
+
+        group = self.db.get_group(group_id)
+        cameras = self.db.list_group_cameras(group_id)
+        img_settings = self._get_image_settings()
+        if not group:
+            raise RuntimeError("Group not found")
+        if not cameras:
+            raise RuntimeError("Group has no cameras")
+
+        anchor_camera = cameras[0]
+        strip_paths: list[tuple[str, Path]] = []
+        included_cameras: list[str] = []
+        missing_cameras: list[str] = []
+
+        for camera in cameras:
+            try:
+                strip_path = self._process_frame_collection_for_camera(
+                    camera, img_settings
+                )
+                strip_paths.append((camera["frigate_name"], strip_path))
+                included_cameras.append(camera["frigate_name"])
+            except Exception:
+                missing_cameras.append(camera["frigate_name"])
+
+        if not strip_paths:
+            raise RuntimeError("All group camera snapshots failed")
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        slug = f"{group['group_type']}_{group['name']}".replace(" ", "_").replace(
+            "/", "_"
+        )
+        composite_path = (
+            DATA_ROOT / "evidence" / "groups" / f"{slug}_{stamp}_groupcollage.jpg"
+        )
+
+        if len(strip_paths) == 1:
+            composite_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(strip_paths[0][1]), str(composite_path))
+        else:
+            composite_path = build_group_collage(strip_paths, composite_path)
+
+        result = self.ollama_client().classify_group_image(composite_path)
+        annotated = self._group_annotated_path(group["group_type"], group["name"])
+        draw_person_boxes(composite_path, annotated, result.get("boxes", []))
+
+        notes = result.get("notes", "")
+        if missing_cameras:
+            suffix = f" Missing cameras: {', '.join(missing_cameras)}."
+            notes = f"{notes}{suffix}".strip()
+
+        start_ts = datetime.now(timezone.utc).isoformat()
+        end_ts = start_ts
+        segment = self.db.create_segment(
+            job_id=job["id"],
+            camera_id=anchor_camera["id"],
+            start_ts=start_ts,
+            end_ts=end_ts,
+            label=result["label"],
+            confidence=float(result["confidence"]),
+            notes=notes,
+            evidence_path=str(annotated.relative_to(DATA_ROOT.parent)),
+        )
+
+        stored_result = {
+            **result,
+            "notes": notes,
+            "included_cameras": included_cameras,
+            "missing_cameras": missing_cameras,
+            "group_id": group_id,
+            "group_name": group["name"],
+            "group_type": group["group_type"],
+            "segment_id": segment["id"],
+        }
+
+        self.db.mark_job_finished(
+            job["id"],
+            "success",
+            raw_result=stored_result,
+            snapshot_path=str(annotated.relative_to(DATA_ROOT.parent)),
+        )
+
+        return {
+            "ok": True,
+            "group": group,
+            "job_id": job["id"],
+            "segment_id": segment["id"],
+            "camera_count": len(included_cameras),
+            "missing_count": len(missing_cameras),
+        }
 
     def probe_analysis(
         self, camera_id: int | None = None, frigate_name: str | None = None
@@ -517,6 +579,50 @@ class AnalyticsService:
         dest = DATA_ROOT / "evidence" / "snapshots" / f"{camera_name}_{stamp}.jpg"
         return self.frigate_client().fetch_latest_snapshot(camera_name, dest)
 
+    def _get_image_settings(self) -> dict[str, Any]:
+        settings = self.settings()
+        resolution_map = {
+            "320p": 320,
+            "640p": 640,
+            "720p": 720,
+            "original": 0,
+        }
+        return {
+            "frames": int(settings.get("llm_frames_per_process", 1)),
+            "resolution": resolution_map.get(
+                settings.get("image_resize_resolution", "original"), 0
+            ),
+            "quality": int(settings.get("image_compression_quality", 100)),
+        }
+
+    def _process_frame_collection_for_camera(
+        self, camera: dict[str, Any], img_settings: dict[str, Any]
+    ) -> Path:
+        frigate = self.frigate_client()
+        camera_name = camera["frigate_name"]
+        count = img_settings["frames"]
+
+        if count <= 1:
+            return self._capture_snapshot(camera_name)
+
+        frames = fetch_frames(frigate, camera_name, count)
+
+        max_dim = img_settings["resolution"]
+        if max_dim > 0:
+            frames = [resize_pil_image(f, max_dim) for f in frames]
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        strip_name = f"{camera_name}_{stamp}_strip.jpg"
+        strip_path = DATA_ROOT / "evidence" / "snapshots" / strip_name
+
+        quality = img_settings["quality"]
+        if len(frames) == 1:
+            strip_path.parent.mkdir(parents=True, exist_ok=True)
+            frames[0].save(str(strip_path), "JPEG", quality=quality)
+            return strip_path
+
+        return build_vertical_strip(frames, camera_name, strip_path)
+
     def _annotated_snapshot_path(self, camera_name: str) -> Path:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         return (
@@ -557,9 +663,10 @@ class AnalyticsService:
         shift: str | None = None,
         sort_by: str = "id",
         sort_dir: str = "desc",
+        job_type: str | None = None,
     ):
         tz_name = self.settings().get("timezone") or "UTC"
-        return self.db.list_jobs_paginated(
+        result = self.db.list_jobs_paginated(
             page,
             page_size,
             status,
@@ -571,7 +678,17 @@ class AnalyticsService:
             sort_dir,
             tz_name,
             group_id,
+            job_type,
         )
+        return {
+            "jobs": result.get("items", []),
+            "total": result.get("total", 0),
+            "page": page,
+            "page_size": page_size,
+            "total_pages": max(
+                1, (result.get("total", 0) + page_size - 1) // page_size
+            ),
+        }
 
     def job(self, job_id: int):
         return self.db.get_job(job_id)
@@ -674,3 +791,40 @@ class AnalyticsService:
         path = DATA_ROOT / "reports" / "daily" / f"{day}.json"
         path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         return report
+
+    def efficiency_heatmap_minute(
+        self, date: str, camera_id: int | None = None
+    ) -> dict[str, Any]:
+        """Get per-minute efficiency data for a specific date."""
+        return self.db.efficiency_heatmap_minute(date, camera_id)
+
+    def efficiency_summary(
+        self, from_date: str, to_date: str, camera_id: int | None = None
+    ) -> dict[str, Any]:
+        """Get efficiency summary for a date range."""
+        return self.db.efficiency_summary(from_date, to_date, camera_id)
+
+    def efficiency_heatmap_daily(
+        self, from_date: str, to_date: str, camera_id: int | None = None
+    ) -> dict[str, Any]:
+        """Get daily aggregated efficiency data."""
+        return self.db.efficiency_heatmap_daily(from_date, to_date, camera_id)
+
+    def efficiency_timeline(
+        self,
+        date: str,
+        camera_id: int | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> dict[str, Any]:
+        """Get timeline of activity for a specific date."""
+        return self.db.efficiency_timeline(date, camera_id, page, page_size)
+
+    def efficiency_heatmap_chart(
+        self,
+        from_date: str,
+        to_date: str,
+        view: str = "daily",
+    ) -> dict[str, Any]:
+        """Get heatmap chart data for enabled cameras in groups."""
+        return self.db.efficiency_heatmap_chart(from_date, to_date, view)

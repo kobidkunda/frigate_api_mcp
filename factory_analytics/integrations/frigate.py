@@ -131,3 +131,38 @@ class FrigateClient:
         raise RuntimeError(
             f"Failed to fetch latest snapshot for {camera_name}: {last_error}"
         )
+
+    def fetch_latest_snapshot_to_bytes(self, camera_name: str) -> bytes:
+        if not self.base_url:
+            raise RuntimeError("Frigate URL not configured")
+        endpoints = [
+            *(
+                [f"{self._go2rtc_base_url()}/api/frame.jpeg?src={camera_name}"]
+                if self._go2rtc_base_url()
+                else []
+            ),
+            f"{self.base_url}/api/{camera_name}/latest.jpg",
+            f"{self.base_url}/api/{camera_name}/grid.jpg",
+        ]
+        last_error: str | None = None
+        for endpoint in endpoints:
+            try:
+                with httpx.Client(
+                    timeout=httpx.Timeout(
+                        connect=5, read=self.snapshot_timeout, write=5, pool=5
+                    ),
+                    verify=self.verify_tls,
+                    headers=self._headers(),
+                    auth=self._auth(),
+                    follow_redirects=True,
+                ) as client:
+                    r = client.get(endpoint)
+                    r.raise_for_status()
+                    return r.content
+            except httpx.HTTPStatusError as exc:
+                last_error = f"{exc.response.status_code} for {exc.request.url}"
+            except Exception as exc:
+                last_error = str(exc)
+        raise RuntimeError(
+            f"Failed to fetch snapshot bytes for {camera_name}: {last_error}"
+        )
