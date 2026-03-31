@@ -11,24 +11,47 @@ from factory_analytics.logging_setup import setup_logging
 logger = setup_logging()
 
 DEFAULT_PROMPT = (
-    "You are classifying a factory camera image. "
-    "Return JSON only with keys label, confidence, notes, boxes. "
+    "You are a strict factory CCTV vision auditor. Analyze the provided image conservatively and only report what is directly visible. "
+    "CRITICAL RULES:\n"
+    "1. NEVER assume a person is present unless a human head, torso, limbs, or clear body shape is actually visible.\n"
+    "2. NEVER mark 'sleeping' unless a clearly visible person is seen in a sleep-like posture.\n"
+    "3. Machine activity does NOT imply human presence.\n"
+    "4. Bags, cloth, sacks, chairs, shadows, machine parts, reflections, and colored objects must NOT be treated as people.\n"
+    "5. If no person is clearly visible, output: person_present=false, person_count=0, sleeping=false, idle=false, worker_state='no_person_visible'\n"
+    "6. If visibility is poor or evidence is weak, use 'unknown' instead of guessing.\n"
+    "7. Be conservative. False positives are worse than false negatives.\n\n"
+    "Common false positives in this factory: cloth bundles, sacks, chairs, machine handles, colored plastic rolls, shadows, reflections, stacked material. "
+    "These must NOT be classified as people.\n\n"
+    "Return STRICT JSON ONLY with these exact keys:\n"
+    '{"label": "working|idle|sleeping|uncertain|stopped|sleep-suspect|timepass|operator_missing", "confidence": 0.0, "notes": "brief explanation", "boxes": []}\n'
     "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
-    "Base your answer only on visible evidence. "
+    "If no person visible, use label='operator_missing'. "
     "Confidence must be a number from 0 to 1. "
-    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1."
+    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1. "
+    "DO NOT include any text before or after the JSON. Return ONLY valid JSON."
 )
 
 GROUP_PROMPT = (
-    "You are classifying a merged multi-camera factory collage image. "
-    "The image may contain several camera views in a grid. "
-    "Analyze only visible factory/worksite scenes in the collage. "
-    "Ignore any imagined webpages, articles, ads, or unrelated text. "
-    "Return JSON only with keys label, confidence, notes, boxes. "
+    "You are a strict factory CCTV vision auditor. Analyze the provided image conservatively and only report what is directly visible. "
+    "CRITICAL RULES:\n"
+    "1. NEVER assume a person is present unless a human head, torso, limbs, or clear body shape is actually visible.\n"
+    "2. NEVER mark 'sleeping' unless a clearly visible person is seen in a sleep-like posture.\n"
+    "3. Machine activity does NOT imply human presence.\n"
+    "4. Bags, cloth, sacks, chairs, shadows, machine parts, reflections, and colored objects must NOT be treated as people.\n"
+    "5. If no person is clearly visible, output: person_present=false, person_count=0, sleeping=false, idle=false, worker_state='no_person_visible'\n"
+    "6. If visibility is poor or evidence is weak, use 'unknown' instead of guessing.\n"
+    "7. Be conservative. False positives are worse than false negatives.\n\n"
+    "Common false positives in this factory: cloth bundles, sacks, chairs, machine handles, colored plastic rolls, shadows, reflections, stacked material. "
+    "These must NOT be classified as people.\n\n"
+    "The top-left labeled area shows the camera/view name for each section. "
+    "Look specifically for people present or absent in each camera view.\n\n"
+    "Return STRICT JSON ONLY with these exact keys:\n"
+    '{"label": "working|idle|sleeping|uncertain|stopped|sleep-suspect|timepass|operator_missing", "confidence": 0.0, "notes": "brief explanation", "boxes": []}\n'
     "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
-    "Base your answer only on visible evidence from the collage. "
+    "If no person visible in any camera view, use label='operator_missing'. "
     "Confidence must be a number from 0 to 1. "
-    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1."
+    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1. "
+    "DO NOT include any text before or after the JSON. Return ONLY valid JSON."
 )
 
 VALID_LABELS = {
@@ -55,12 +78,20 @@ def normalize_label(raw_label: str) -> str | None:
         "operator missing": "operator_missing",
         "missing operator": "operator_missing",
         "no operator": "operator_missing",
+        "worker missing": "operator_missing",
+        "missing worker": "operator_missing",
+        "no worker": "operator_missing",
+        "no person": "operator_missing",
         "not working": "idle",
         "doing no work": "idle",
         "stopped vehicle": "stopped",
         "vehicle stopped": "stopped",
         "stopped machine": "stopped",
         "machine stopped": "stopped",
+        "no extended analysis available": "uncertain",
+        "no analysis available": "uncertain",
+        "no people": "operator_missing",
+        "no human": "operator_missing",
     }
     if label in aliases:
         return aliases[label]

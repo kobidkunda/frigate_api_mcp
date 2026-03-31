@@ -19,10 +19,13 @@
     <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/efficiency') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/efficiency">
       <span class="material-symbols-outlined">speed</span> Efficiency
     </a>
-    <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/history') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/history">
-            <span class="material-symbols-outlined">description</span> Reports
-        </a>
-        <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/jobs') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/jobs">
+<a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/history') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/history">
+<span class="material-symbols-outlined">description</span> Reports
+</a>
+<a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/photos') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/photos">
+<span class="material-symbols-outlined">photo_library</span> Photos
+</a>
+<a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/jobs') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/jobs">
             <span class="material-symbols-outlined">task_alt</span> Jobs
         </a>
     </nav>

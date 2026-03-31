@@ -538,22 +538,6 @@ class AnalyticsService:
             "missing_count": len(missing_cameras),
         }
 
-        self.db.mark_job_finished(
-            job["id"],
-            "success",
-            raw_result=stored_result,
-            snapshot_path=str(annotated.relative_to(DATA_ROOT.parent)),
-        )
-
-        return {
-            "ok": True,
-            "group": group,
-            "job_id": job["id"],
-            "segment_id": segment["id"],
-            "camera_count": len(included_cameras),
-            "missing_count": len(missing_cameras),
-        }
-
     def probe_analysis(
         self, camera_id: int | None = None, frigate_name: str | None = None
     ) -> dict[str, Any]:

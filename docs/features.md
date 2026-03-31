@@ -54,7 +54,14 @@
   - Status: active
   - Paths: `factory_analytics/mcp_server.py`
   - Notes: 43 tools available covering 100% of REST API functionality; includes system health, camera CRUD, group management, job operations, charts, reports, settings, Frigate integration, scheduler, and logs; authenticates via Bearer token if MCP_TOKEN is set; JSON-RPC 2.0 compatible
-  - Last updated: 2026-03-31
+- Last updated: 2026-03-31
+
+## Photo Gallery
+- Feature: Photo Gallery page with filtering and pagination
+- Status: active
+- Paths: `factory_analytics/templates/photos.html`, `factory_analytics/static/photos.js`, `factory_analytics/main.py`, `factory_analytics/database.py`, `factory_analytics/services.py`
+- Notes: Displays all segment evidence photos as beautiful cards with status-colored backgrounds; Filters: date range, day of week, time range, camera, group, status; Server-side pagination (20 per page); Click to view full-size in modal with detailed metadata; Added to sidebar and mobile navigation
+- Last updated: 2026-04-01
 
 ## Operations
 - Feature: Service management script (API + MCP)
@@ -96,4 +103,9 @@
 - Notes: Per-minute efficiency data visualization with calendar heatmap; color-coded status indicators (working=green, idle=yellow, offline=gray, error=red); shift-wise data display (day: 06:00-18:00, night: 18:00-06:00); daily/weekly/monthly view toggles; camera and shift filtering; summary cards showing efficiency %, working/idle time, active workers; top performers list; detailed activity log with export to CSV; API endpoints: /api/efficiency/heatmap-minute, /api/efficiency/summary, /api/efficiency/heatmap-daily, /api/efficiency/timeline
 - Last updated: 2026-03-31
 
-- Last updated: 2026-03-31
+## LLM Image Processing
+- Feature: Multi-frame capture and image optimization
+- Status: active
+- Paths: `factory_analytics/integrations/image_pipeline.py`, `factory_analytics/services.py`, `factory_analytics/templates/settings.html`, `factory_analytics/static/efficiency.js`
+- Notes: Captures N photos (1/sec × N seconds) per analysis; resize (320p/640p/720p/original); JPEG compression quality; vertical strip for single camera; side-by-side collage for multi-camera groups; Visual Evidence modal shows all individual frames; job timeout auto-cancels stuck jobs; improved GROUP_PROMPT for small models
+- Last updated: 2026-04-01

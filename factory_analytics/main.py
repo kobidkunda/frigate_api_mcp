@@ -161,6 +161,11 @@ def efficiency_page(request: Request):
     return templates.TemplateResponse("efficiency.html", {"request": request})
 
 
+@app.get("/photos", response_class=HTMLResponse)
+def photos_page(request: Request):
+    return templates.TemplateResponse("photos.html", {"request": request})
+
+
 @app.get("/api/health")
 def api_health():
     return service.system_health()
@@ -597,6 +602,53 @@ def chart_job_failures():
 
 @app.get("/api/charts/confidence-distribution")
 def chart_confidence_distribution():
+    return service.chart_confidence_distribution()
+
+
+@app.get("/api/photos")
+def list_photos(
+    page: int = 1,
+    page_size: int = 20,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    days: str | None = Query(None),
+    time_from: int | None = None,
+    time_to: int | None = None,
+    cameras: str | None = Query(None),
+    groups: str | None = Query(None),
+    labels: str | None = Query(None),
+):
+    days_list = (
+        [int(d) for d in (days or "").split(",") if d.strip().isdigit()]
+        if days
+        else None
+    )
+    cameras_list = (
+        [int(c) for c in (cameras or "").split(",") if c.strip().isdigit()]
+        if cameras
+        else None
+    )
+    groups_list = (
+        [int(g) for g in (groups or "").split(",") if g.strip().isdigit()]
+        if groups
+        else None
+    )
+    labels_list = (
+        [l.strip() for l in (labels or "").split(",") if l.strip()] if labels else None
+    )
+
+    return service.photos_paginated(
+        page=page,
+        page_size=page_size,
+        date_from=date_from,
+        date_to=date_to,
+        days=days_list,
+        time_from=time_from,
+        time_to=time_to,
+        cameras=cameras_list,
+        groups=groups_list,
+        labels=labels_list,
+    )
     return service.chart_confidence_distribution()
 
 

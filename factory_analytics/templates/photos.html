@@ -1,0 +1,231 @@
+{% extends "partials/base.html" %}
+{% block title %}Photo Gallery{% endblock %}
+{% block content %}
+<style>
+.photo-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.photo-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+}
+.photo-img-container {
+    position: relative;
+    overflow: hidden;
+}
+.photo-img-container img {
+    transition: transform 0.3s ease;
+}
+.photo-card:hover .photo-img-container img {
+    transform: scale(1.05);
+}
+.status-working { background: rgba(0, 228, 117, 0.15); border-left: 4px solid #00e475; }
+.status-idle { background: rgba(144, 144, 148, 0.1); border-left: 4px solid #909094; }
+.status-sleeping { background: rgba(184, 195, 255, 0.15); border-left: 4px solid #b8c3ff; }
+.status-stopped { background: rgba(255, 180, 171, 0.15); border-left: 4px solid #ffb4ab; }
+.status-uncertain { background: rgba(200, 200, 200, 0.1); border-left: 4px solid #c8c8c8; }
+</style>
+
+<header class="mb-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-1">Photo Gallery</h1>
+            <p class="text-on-surface-variant font-body">Visual evidence archive with classification metadata</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 text-xs flex-wrap">
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#00e475"></span>Working</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-outline"></span>Idle</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#b8c3ff"></span>Sleeping</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#ffb4ab"></span>Stopped</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#c8c8c8"></span>Uncertain</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Filters Panel -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-6 shadow-sm">
+    <div class="flex items-center justify-between mb-4">
+        <button id="toggleFilters" class="flex items-center gap-2 text-sm font-medium text-on-surface hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-base">filter_list</span>
+            Filters
+            <span id="filterArrow" class="material-symbols-outlined text-base transition-transform">expand_more</span>
+        </button>
+        <button id="clearFilters" class="text-xs text-on-surface-variant hover:text-primary transition-colors">Clear All</button>
+    </div>
+    <div id="filtersContent" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Date From</label>
+            <input type="date" id="dateFrom" class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm">
+        </div>
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Date To</label>
+            <input type="date" id="dateTo" class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm">
+        </div>
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Camera</label>
+            <select id="cameraFilter" multiple class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm h-24">
+            </select>
+        </div>
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Group</label>
+            <select id="groupFilter" multiple class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm h-24">
+            </select>
+        </div>
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Status</label>
+            <select id="statusFilter" multiple class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm h-24">
+                <option value="working">Working</option>
+                <option value="idle">Idle</option>
+                <option value="sleeping">Sleeping</option>
+                <option value="stopped">Stopped</option>
+                <option value="uncertain">Uncertain</option>
+            </select>
+        </div>
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Day of Week</label>
+            <div class="flex flex-wrap gap-2">
+                <label class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <input type="checkbox" value="1" class="day-filter accent-primary"> Mon
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <input type="checkbox" value="2" class="day-filter accent-primary"> Tue
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <input type="checkbox" value="3" class="day-filter accent-primary"> Wed
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <input type="checkbox" value="4" class="day-filter accent-primary"> Thu
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <input type="checkbox" value="5" class="day-filter accent-primary"> Fri
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <input type="checkbox" value="6" class="day-filter accent-primary"> Sat
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                    <input type="checkbox" value="0" class="day-filter accent-primary"> Sun
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="mt-4 pt-4 border-t border-outline-variant/10">
+        <div class="flex items-center gap-4">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Time Range</label>
+            <div class="flex items-center gap-2 flex-1">
+                <input type="range" id="timeFrom" min="0" max="23" value="0" class="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary">
+                <span id="timeFromLabel" class="text-xs text-primary font-bold w-12 text-right">00:00</span>
+                <span class="text-outline">to</span>
+                <input type="range" id="timeTo" min="0" max="23" value="23" class="w-full h-1 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary">
+                <span id="timeToLabel" class="text-xs text-primary font-bold w-12">23:59</span>
+            </div>
+        </div>
+    </div>
+    <div class="mt-4 flex justify-end">
+        <button id="applyFilters" class="px-4 py-2 bg-gradient-to-r from-primary to-on-primary-container text-on-primary rounded-md font-label font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all">
+            Apply Filters
+        </button>
+    </div>
+</section>
+
+<!-- Stats Bar -->
+<div class="flex items-center gap-4 mb-6">
+    <div class="bg-surface-container-low rounded-lg px-4 py-2 border border-outline-variant/10">
+        <span class="text-xs text-on-surface-variant">Total: </span>
+        <span id="totalCount" class="text-sm font-bold text-on-surface">0</span>
+    </div>
+    <div class="bg-surface-container-low rounded-lg px-4 py-2 border border-outline-variant/10">
+        <span class="text-xs text-on-surface-variant">Showing: </span>
+        <span id="showingCount" class="text-sm font-bold text-on-surface">0</span>
+    </div>
+</div>
+
+<!-- Photo Grid -->
+<div id="photoGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+</div>
+
+<!-- Empty State -->
+<div id="emptyState" class="hidden text-center py-16">
+    <span class="material-symbols-outlined text-5xl text-outline mb-4">photo_library</span>
+    <p class="font-label text-sm uppercase tracking-widest text-outline">No photos found</p>
+    <p class="text-xs text-on-surface-variant mt-2">Try adjusting your filters</p>
+</div>
+
+<!-- Loading State -->
+<div id="loadingState" class="hidden text-center py-16">
+    <span class="material-symbols-outlined animate-spin text-4xl text-primary">sync</span>
+    <p class="font-label text-sm uppercase tracking-widest text-primary mt-4">Loading photos...</p>
+</div>
+
+<!-- Pagination -->
+<div id="pagination" class="mt-8 flex items-center justify-between">
+    <div class="text-xs text-on-surface-variant">
+        Showing <span id="pageStart">0</span>-<span id="pageEnd">0</span> of <span id="pageTotal">0</span>
+    </div>
+    <div class="flex items-center gap-2">
+        <button id="prevPage" class="px-4 py-2 bg-surface-container hover:bg-surface-bright rounded text-sm font-label uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+        <span class="text-sm text-on-surface-variant">Page <span id="currentPage">1</span></span>
+        <button id="nextPage" class="px-4 py-2 bg-surface-container hover:bg-surface-bright rounded text-sm font-label uppercase tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div id="photoModal" class="fixed inset-0 z-50 hidden flex items-center justify-center" style="background:rgba(0,0,0,0.85)">
+    <div class="bg-surface-container-high border border-outline-variant/20 rounded-2xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
+        <div class="flex items-center justify-between p-4 border-b border-outline-variant/10">
+            <h3 id="modalTitle" class="text-base font-bold text-on-surface">Photo Details</h3>
+            <button id="modalClose" class="p-1 rounded-full hover:bg-surface-container transition-colors">
+                <svg class="w-5 h-5 text-on-surface-variant" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="flex flex-col md:flex-row">
+            <div class="flex-1 p-4 flex items-center justify-center bg-surface-container-lowest">
+                <img id="modalImage" src="" alt="" class="max-w-full max-h-[60vh] object-contain rounded-lg">
+            </div>
+            <div class="md:w-80 p-4 space-y-4 border-t md:border-t-0 md:border-l border-outline-variant/10 overflow-y-auto">
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Segment</span>
+                    <p id="modalSegmentId" class="text-sm font-bold text-primary mt-1"></p>
+                </div>
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Status</span>
+                    <p id="modalStatus" class="mt-1"></p>
+                </div>
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Camera</span>
+                    <p id="modalCamera" class="text-sm text-on-surface mt-1"></p>
+                </div>
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Groups</span>
+                    <p id="modalGroups" class="text-sm text-on-surface-variant mt-1"></p>
+                </div>
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Temporal Span</span>
+                    <p id="modalTemporal" class="text-sm text-on-surface mt-1"></p>
+                </div>
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Duration</span>
+                    <p id="modalDuration" class="text-sm text-on-surface mt-1"></p>
+                </div>
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Confidence</span>
+                    <p id="modalConfidence" class="text-sm text-on-surface mt-1"></p>
+                </div>
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Notes</span>
+                    <p id="modalNotes" class="text-sm text-on-surface-variant mt-1 leading-relaxed"></p>
+                </div>
+                <div class="pt-4 border-t border-outline-variant/10">
+                    <a id="modalDetailsLink" href="#" class="flex items-center gap-2 text-xs font-medium text-primary hover:underline">
+                        <span class="material-symbols-outlined text-sm">open_in_new</span>
+                        View Full Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/photos.js"></script>
+{% endblock %}

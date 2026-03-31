@@ -1,6 +1,10 @@
 # TODOs
 
 ## In Progress
+- [ ] Test LLM prompt hardening on camera that produced Chinese output
+- Owner: ops
+- Related: docs/implementation/2026-04-01-llm-prompt-hardening-chinese-output.md
+- Next step: Restart app and trigger analysis on same camera
 
 ## Planned
 - [ ] Monitor Ollama /api/chat endpoint for intermittent 500 errors
@@ -18,6 +22,18 @@
 ## Blocked
 
 ## Done
+- [x] Create MAINTENANCE.md manual for SysAdmins/DevOps
+- Done: 2026-04-01
+- Related: docs/MAINTENANCE.md
+- Content: Quick reference, service management, database maintenance, external integrations, worker/scheduler, monitoring, troubleshooting
+- [x] Implement LLM multi-frame capture and image optimization
+- Done: 2026-04-01
+- Related: docs/implementation/2026-04-01-llm-image-sampling-optimization.md
+- Features: 5 new settings, ImagePipeline module, job timeout, frame thumbnails in Visual Evidence
+- [x] Add Photo Gallery page with filtering and pagination
+- Done: 2026-04-01
+- Related: docs/implementation/2026-04-01-photo-gallery-page.md
+- Features: Photo cards with status-colored backgrounds, filters (date, day, time, camera, group, status), server-side pagination, click-to-modal view, added to sidebar and mobile nav
 - [x] Analyze camera_88_4 visibility runs not completing (issue #1647)
 - Done: 2026-04-01
 - Related: docs/implementation/2026-04-01-camera-88-4-visibility-analysis-issue-1647.md
