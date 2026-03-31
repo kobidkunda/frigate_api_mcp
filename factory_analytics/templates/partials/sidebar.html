@@ -7,19 +7,25 @@
 <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/dashboard') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/dashboard">
 <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span> Overview
 </a>
-<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="#cameras">
+<a class="flex items-center gap-3 px-6 py-3 text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6] font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/dashboard#cameras">
 <span class="material-symbols-outlined">videocam</span> Cameras
 </a>
 <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/groups') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/groups">
 <span class="material-symbols-outlined">group_work</span> Groups
 </a>
 <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/charts') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/charts">
-<span class="material-symbols-outlined">leaderboard</span> Analytics
-</a>
-<a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/history') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/history">
-<span class="material-symbols-outlined">description</span> Reports
-</a>
-</nav>
+      <span class="material-symbols-outlined">leaderboard</span> Analytics
+    </a>
+    <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/efficiency') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/efficiency">
+      <span class="material-symbols-outlined">speed</span> Efficiency
+    </a>
+    <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/history') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/history">
+            <span class="material-symbols-outlined">description</span> Reports
+        </a>
+        <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/jobs') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/jobs">
+            <span class="material-symbols-outlined">task_alt</span> Jobs
+        </a>
+    </nav>
 <div class="mt-auto space-y-1">
 <a class="flex items-center gap-3 px-6 py-3 {% if request.url.path.startswith('/api-explorer') %}bg-[#1d2026] text-[#b8c3ff] border-r-4 border-[#b8c3ff]{% else %}text-[#909094] hover:bg-[#1d2026] hover:text-[#e2e2e6]{% endif %} font-['Space_Grotesk'] uppercase text-xs font-medium tracking-widest transition-all duration-200 ease-in-out" href="/api-explorer">
 <span class="material-symbols-outlined">api</span> API Explorer

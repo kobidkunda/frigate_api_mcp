@@ -94,8 +94,6 @@ async function loadProcessedEvents(){
   }
   document.getElementById('page-info').textContent = `Page ${data.page} · Total ${data.total}`;
 }
-  document.getElementById('page-info').textContent = `Page ${data.page} · Total ${data.total}`;
-}
 
 document.addEventListener('DOMContentLoaded', () => {
   loadProcessedTimezone().then(loadProcessedEvents);

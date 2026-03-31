@@ -156,6 +156,11 @@ def charts_page(request: Request):
     return templates.TemplateResponse("charts.html", {"request": request})
 
 
+@app.get("/efficiency", response_class=HTMLResponse)
+def efficiency_page(request: Request):
+    return templates.TemplateResponse("efficiency.html", {"request": request})
+
+
 @app.get("/api/health")
 def api_health():
     return service.system_health()
@@ -387,8 +392,20 @@ def backfill(payload: BackfillPayload):
 
 
 @app.get("/api/jobs")
-def list_jobs(status: str | None = None, camera_id: int | None = None):
-    return service.jobs(status=status, camera_id=camera_id)
+def list_jobs(
+    status: str | None = None,
+    camera_id: int | None = None,
+    job_type: str | None = None,
+    page: int = 1,
+    page_size: int = 25,
+):
+    return service.jobs_paginated(
+        page=page,
+        page_size=page_size,
+        status=status,
+        camera_id=camera_id,
+        job_type=job_type,
+    )
 
 
 @app.get("/api/processed-events/jobs")
@@ -418,12 +435,68 @@ def processed_jobs(
     )
 
 
+class BulkCancelPayload(BaseModel):
+    job_ids: list[int]
+
+
+@app.get("/api/jobs/stats")
+def job_stats():
+    return db.job_stats()
+
+
+@app.post("/api/jobs/bulk-cancel")
+def bulk_cancel_jobs(payload: BulkCancelPayload):
+    cancelled = 0
+    for job_id in payload.job_ids:
+        job = service.job(job_id)
+        if job and job.get("status") in ("pending", "running"):
+            db.mark_job_finished(job_id, "cancelled", error="Bulk cancelled by user")
+            cancelled += 1
+    db.log_audit("api", "job.bulk_cancel", "job", None, {"cancelled": cancelled})
+    return {"ok": True, "cancelled": cancelled}
+
+
+@app.post("/api/jobs/cancel-all")
+def cancel_all_jobs():
+    result = db.cancel_all_pending_and_running()
+    db.log_audit(
+        "api", "job.cancel_all", "job", None, {"cancelled": result.get("cancelled", 0)}
+    )
+    return result
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: int):
     job = service.job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: int):
+    job = service.job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("status") not in ("pending", "running"):
+        raise HTTPException(
+            status_code=400, detail="Only pending or running jobs can be cancelled"
+        )
+    db.mark_job_finished(job_id, "cancelled", error="Cancelled by user")
+    db.log_audit("api", "job.cancel", "job", str(job_id))
+    return {"ok": True, "job_id": job_id, "status": "cancelled"}
+
+
+@app.post("/api/scheduler/reset")
+def reset_scheduler():
+    db.reset_all_camera_last_run()
+    db.log_audit("api", "scheduler.reset", "scheduler", None)
+    return {"ok": True, "message": "Scheduler reset, cameras will be scheduled fresh"}
+
+
+@app.get("/jobs", response_class=HTMLResponse)
+def jobs_page(request: Request):
+    return templates.TemplateResponse("jobs.html", {"request": request})
 
 
 @app.get("/api/history/segments")
@@ -532,6 +605,56 @@ def report_daily(day: str | None = None):
     return service.report_daily(day)
 
 
+@app.get("/api/efficiency/heatmap-minute")
+def efficiency_heatmap_minute(
+    date: str,
+    camera_id: int | None = None,
+):
+    """Get per-minute efficiency data for a specific date."""
+    return service.efficiency_heatmap_minute(date, camera_id)
+
+
+@app.get("/api/efficiency/summary")
+def efficiency_summary(
+    from_date: str,
+    to_date: str,
+    camera_id: int | None = None,
+):
+    """Get efficiency summary for a date range."""
+    return service.efficiency_summary(from_date, to_date, camera_id)
+
+
+@app.get("/api/efficiency/heatmap-daily")
+def efficiency_heatmap_daily(
+    from_date: str,
+    to_date: str,
+    camera_id: int | None = None,
+):
+    """Get daily aggregated efficiency data for heatmap."""
+    return service.efficiency_heatmap_daily(from_date, to_date, camera_id)
+
+
+@app.get("/api/efficiency/heatmap-chart")
+def efficiency_heatmap_chart(
+    from_date: str,
+    to_date: str,
+    view: str = "daily",
+):
+    """Get heatmap chart data for enabled cameras in groups, formatted for ApexCharts."""
+    return service.efficiency_heatmap_chart(from_date, to_date, view)
+
+
+@app.get("/api/efficiency/timeline")
+def efficiency_timeline(
+    date: str,
+    camera_id: int | None = None,
+    page: int = 1,
+    page_size: int = 50,
+):
+    """Get timeline of activity for a specific date."""
+    return service.efficiency_timeline(date, camera_id, page, page_size)
+
+
 @app.get("/api/logs/tail")
 def logs_tail(name: str = "api", lines: int = 200):
     mapping = {
@@ -553,7 +676,12 @@ def evidence(segment_id: int):
     segment = service.segment(segment_id)
     if not segment:
         raise HTTPException(status_code=404, detail="Segment not found")
-    return {"segment_id": segment_id, "evidence_path": segment.get("evidence_path")}
+    raw_result = segment.get("raw_result") or {}
+    return {
+        "segment_id": segment_id,
+        "evidence_path": segment.get("evidence_path"),
+        "frame_paths": raw_result.get("frame_paths", []),
+    }
 
 
 @app.get("/{file_path:path}")

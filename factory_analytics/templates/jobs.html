@@ -1,0 +1,571 @@
+{% extends "partials/base.html" %}
+{% block title %}Jobs Management{% endblock %}
+{% block content %}
+<header class="mb-8">
+    <h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Jobs Management</h1>
+    <p class="text-on-surface-variant font-body">Monitor, control, and debug analysis jobs with full request/response logs.</p>
+</header>
+
+<!-- Quick Stats -->
+<section class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+    <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+        <div class="text-2xl font-headline font-bold text-primary" id="stat-pending">0</div>
+        <div class="text-xs font-label uppercase tracking-widest text-outline">Pending</div>
+    </div>
+    <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+        <div class="text-2xl font-headline font-bold text-yellow-500" id="stat-running">0</div>
+        <div class="text-xs font-label uppercase tracking-widest text-outline">Running</div>
+    </div>
+    <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+        <div class="text-2xl font-headline font-bold text-green-500" id="stat-success">0</div>
+        <div class="text-xs font-label uppercase tracking-widest text-outline">Success</div>
+    </div>
+    <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+        <div class="text-2xl font-headline font-bold text-error" id="stat-failed">0</div>
+        <div class="text-xs font-label uppercase tracking-widest text-outline">Failed</div>
+    </div>
+    <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/10">
+        <div class="text-2xl font-headline font-bold text-on-surface" id="stat-total">0</div>
+        <div class="text-xs font-label uppercase tracking-widest text-outline">Total</div>
+    </div>
+</section>
+
+<!-- Bulk Actions -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8 shadow-sm">
+    <div class="flex flex-wrap items-center gap-4">
+        <div class="flex items-center gap-2">
+            <input type="checkbox" id="selectAll" class="w-4 h-4 accent-primary" />
+            <label for="selectAll" class="text-sm font-label text-on-surface">Select All Visible</label>
+        </div>
+        <div class="flex-1"></div>
+        <button onclick="cancelSelectedJobs()" class="px-4 py-2 bg-error/20 text-error border border-error/30 rounded-md text-sm font-label uppercase tracking-widest hover:bg-error/30 transition-colors flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">cancel</span>
+            Cancel Selected
+        </button>
+        <button onclick="cancelAllJobs()" class="px-4 py-2 bg-error text-on-error rounded-md text-sm font-label uppercase tracking-widest hover:brightness-110 transition-all flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">delete_forever</span>
+            Stop All Jobs
+        </button>
+        <button onclick="restartScheduler()" class="px-4 py-2 bg-primary text-on-primary rounded-md text-sm font-label uppercase tracking-widest hover:brightness-110 transition-all flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">restart_alt</span>
+            Restart Fresh
+        </button>
+    </div>
+</section>
+
+<!-- Filters -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8 shadow-sm">
+    <form id="filterForm" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Status</label>
+            <select name="status" id="statusFilter" class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="running">Running</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+            </select>
+        </div>
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Camera</label>
+            <select name="camera_id" id="cameraFilter" class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm">
+                <option value="">All Cameras</option>
+            </select>
+        </div>
+        <div class="space-y-2">
+            <label class="text-xs font-label uppercase tracking-widest text-outline">Job Type</label>
+            <select name="job_type" id="jobTypeFilter" class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm">
+                <option value="">All Types</option>
+                <option value="analysis">Analysis</option>
+                <option value="group_analysis">Group Analysis</option>
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 bg-primary text-on-primary py-2 rounded-md font-label font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all">
+                Apply
+            </button>
+            <button type="button" onclick="clearFilters()" class="p-2 border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-highest rounded-md transition-colors">
+                <span class="material-symbols-outlined text-sm">refresh</span>
+            </button>
+        </div>
+    </form>
+</section>
+
+<!-- Jobs Table -->
+<section class="bg-surface-container-low rounded-xl border border-outline-variant/5 shadow-2xl">
+    <div class="overflow-x-auto w-full">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-surface-container text-outline text-[10px] uppercase tracking-[0.2em] font-label border-b border-outline-variant/10">
+                    <th class="px-4 py-4 font-semibold w-8">
+                        <input type="checkbox" id="selectAllHeader" class="w-4 h-4 accent-primary" />
+                    </th>
+                    <th class="px-4 py-4 font-semibold">Job ID</th>
+                    <th class="px-4 py-4 font-semibold">Camera</th>
+                    <th class="px-4 py-4 font-semibold">Type</th>
+                    <th class="px-4 py-4 font-semibold">Status</th>
+                    <th class="px-4 py-4 font-semibold">Scheduled</th>
+                    <th class="px-4 py-4 font-semibold">Started</th>
+                    <th class="px-4 py-4 font-semibold">Finished</th>
+                    <th class="px-4 py-4 font-semibold text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="jobs-tbody" class="divide-y divide-outline-variant/5">
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="flex justify-between items-center p-4 border-t border-outline-variant/10 bg-surface-container-lowest">
+        <button type="button" id="page-prev" class="px-4 py-2 bg-surface-container hover:bg-surface-bright rounded text-sm font-label uppercase tracking-widest transition-colors disabled:opacity-50">Prev</button>
+        <span id="page-info" class="text-sm font-label text-outline">Page 1</span>
+        <button type="button" id="page-next" class="px-4 py-2 bg-surface-container hover:bg-surface-bright rounded text-sm font-label uppercase tracking-widest transition-colors disabled:opacity-50">Next</button>
+    </div>
+    
+    <!-- Loading State -->
+    <div class="absolute inset-0 flex items-center justify-center bg-surface-container-low/80 backdrop-blur-sm z-10" id="state-loading" style="display: none;">
+        <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined animate-spin text-primary">sync</span>
+            <span class="font-label text-sm uppercase tracking-widest text-primary">Loading Jobs...</span>
+        </div>
+    </div>
+</section>
+
+<!-- Job Detail Modal -->
+<div id="jobModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4" onclick="closeModal(event)">
+    <div class="bg-surface-container-low rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+        <div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+            <h2 class="text-xl font-headline font-bold text-on-surface">Job Details: <span id="modal-job-id"></span></h2>
+            <button onclick="closeModal()" class="p-2 hover:bg-surface-container-highest rounded-lg transition-colors">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+            <!-- Job Info -->
+            <div id="modal-job-info" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            </div>
+            
+            <!-- Error Message -->
+            <div id="modal-error-section" class="mb-6 hidden">
+                <h3 class="text-sm font-label uppercase tracking-widest text-error mb-2">Error</h3>
+                <div id="modal-error" class="bg-error/10 border border-error/20 rounded-lg p-4 text-sm font-mono text-error overflow-x-auto"></div>
+            </div>
+            
+            <!-- Request Section -->
+            <div class="mb-6">
+                <h3 class="text-sm font-label uppercase tracking-widest text-outline mb-2">Request Payload</h3>
+                <pre id="modal-request" class="bg-surface-container-lowest rounded-lg p-4 text-sm font-mono text-on-surface overflow-x-auto max-h-48"></pre>
+            </div>
+            
+            <!-- Response Section -->
+            <div class="mb-6">
+                <h3 class="text-sm font-label uppercase tracking-widest text-outline mb-2">Response / Result</h3>
+                <pre id="modal-response" class="bg-surface-container-lowest rounded-lg p-4 text-sm font-mono text-on-surface overflow-x-auto max-h-48"></pre>
+            </div>
+            
+            <!-- Snapshot Evidence -->
+            <div id="modal-snapshot-section" class="mb-6 hidden">
+                <h3 class="text-sm font-label uppercase tracking-widest text-outline mb-2">Snapshot Evidence</h3>
+                <div class="bg-surface-container-lowest rounded-lg p-4 flex justify-center">
+                    <img id="modal-snapshot" class="max-w-full max-h-96 rounded-lg shadow-lg" alt="Job snapshot evidence" />
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+const pageSize = 25;
+let currentFilters = {};
+let selectedJobs = new Set();
+
+async function loadStats() {
+    try {
+        const resp = await fetch('/api/jobs/stats');
+        const data = await resp.json();
+        document.getElementById('stat-pending').textContent = data.pending || 0;
+        document.getElementById('stat-running').textContent = data.running || 0;
+        document.getElementById('stat-success').textContent = data.success || 0;
+        document.getElementById('stat-failed').textContent = data.failed || 0;
+        document.getElementById('stat-total').textContent = data.total || 0;
+    } catch (e) {
+        console.error('Failed to load stats:', e);
+    }
+}
+
+async function loadJobs() {
+    const tbody = document.getElementById('jobs-tbody');
+    const loading = document.getElementById('state-loading');
+    
+    loading.style.display = 'flex';
+    
+    const params = new URLSearchParams({
+        page: currentPage,
+        page_size: pageSize,
+        ...currentFilters
+    });
+    
+    try {
+        const resp = await fetch(`/api/jobs?${params}`);
+        const data = await resp.json();
+        
+        tbody.innerHTML = '';
+        selectedJobs.clear();
+        
+        if (!data.jobs || data.jobs.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="px-6 py-12 text-center text-outline">
+                        <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                        <p class="font-label text-sm uppercase tracking-widest">No jobs found</p>
+                    </td>
+                </tr>
+            `;
+        } else {
+            data.jobs.forEach(job => {
+                const statusBadge = getStatusBadge(job.status);
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-surface-container-highest/50 transition-colors cursor-pointer';
+                row.innerHTML = `
+                    <td class="px-4 py-4">
+                        <input type="checkbox" class="job-checkbox w-4 h-4 accent-primary" data-job-id="${job.id}" ${job.status === 'running' ? 'disabled' : ''} />
+                    </td>
+                    <td class="px-4 py-4 font-mono text-sm text-primary">#${job.id}</td>
+                    <td class="px-4 py-4 text-sm">${job.camera_name || job.camera_frigate_name || '-'}</td>
+                    <td class="px-4 py-4 text-sm">${job.job_type || 'analysis'}</td>
+                    <td class="px-4 py-4">${statusBadge}</td>
+                    <td class="px-4 py-4 text-sm text-outline">${formatTime(job.scheduled_for)}</td>
+                    <td class="px-4 py-4 text-sm text-outline">${formatTime(job.started_at)}</td>
+                    <td class="px-4 py-4 text-sm text-outline">${formatTime(job.finished_at)}</td>
+                    <td class="px-4 py-4 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="event.stopPropagation(); showJobDetails(${job.id})" class="p-1.5 hover:bg-surface-container-highest rounded-lg transition-colors" title="View Details">
+                                <span class="material-symbols-outlined text-sm">visibility</span>
+                            </button>
+                            ${job.status === 'pending' || job.status === 'running' ? `
+                                <button onclick="event.stopPropagation(); cancelJob(${job.id})" class="p-1.5 hover:bg-error/20 rounded-lg transition-colors text-error" title="Cancel Job">
+                                    <span class="material-symbols-outlined text-sm">cancel</span>
+                                </button>
+                            ` : `
+                                <button onclick="event.stopPropagation(); retryJob(${job.id})" class="p-1.5 hover:bg-primary/20 rounded-lg transition-colors text-primary" title="Retry Job">
+                                    <span class="material-symbols-outlined text-sm">refresh</span>
+                                </button>
+                            `}
+                        </div>
+                    </td>
+                `;
+                row.addEventListener('click', () => showJobDetails(job.id));
+                tbody.appendChild(row);
+            });
+        }
+        
+        document.getElementById('page-info').textContent = `Page ${currentPage} of ${data.total_pages || 1} (${data.total || 0} jobs)`;
+        document.getElementById('page-prev').disabled = currentPage <= 1;
+        document.getElementById('page-next').disabled = currentPage >= (data.total_pages || 1);
+        
+    } catch (e) {
+        console.error('Failed to load jobs:', e);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="px-6 py-12 text-center text-error">
+                    <span class="material-symbols-outlined text-4xl mb-2">error</span>
+                    <p class="font-label text-sm">Failed to load jobs</p>
+                </td>
+            </tr>
+        `;
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+async function loadCameras() {
+    try {
+        const resp = await fetch('/api/cameras');
+        const cameras = await resp.json();
+        const select = document.getElementById('cameraFilter');
+        cameras.forEach(cam => {
+            const opt = document.createElement('option');
+            opt.value = cam.id;
+            opt.textContent = cam.name || cam.frigate_name;
+            select.appendChild(opt);
+        });
+    } catch (e) {
+        console.error('Failed to load cameras:', e);
+    }
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        pending: '<span class="px-2 py-1 rounded-full text-xs font-label bg-primary/20 text-primary">Pending</span>',
+        running: '<span class="px-2 py-1 rounded-full text-xs font-label bg-yellow-500/20 text-yellow-500 animate-pulse">Running</span>',
+        success: '<span class="px-2 py-1 rounded-full text-xs font-label bg-green-500/20 text-green-500">Success</span>',
+        failed: '<span class="px-2 py-1 rounded-full text-xs font-label bg-error/20 text-error">Failed</span>'
+    };
+    return badges[status] || `<span class="px-2 py-1 rounded-full text-xs font-label bg-outline/20 text-outline">${status}</span>`;
+}
+
+function formatTime(ts) {
+    if (!ts) return '-';
+    try {
+        const d = new Date(ts);
+        return d.toLocaleString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+        });
+    } catch {
+        return ts;
+    }
+}
+
+async function showJobDetails(jobId) {
+    const modal = document.getElementById('jobModal');
+    
+    try {
+        const resp = await fetch(`/api/jobs/${jobId}`);
+        const job = await resp.json();
+        
+        document.getElementById('modal-job-id').textContent = `#${job.id}`;
+        
+        const infoHtml = `
+            <div class="bg-surface-container-lowest p-3 rounded-lg">
+                <div class="text-xs text-outline font-label uppercase mb-1">Camera</div>
+                <div class="text-sm font-medium">${job.camera_name || job.camera_frigate_name || '-'}</div>
+            </div>
+            <div class="bg-surface-container-lowest p-3 rounded-lg">
+                <div class="text-xs text-outline font-label uppercase mb-1">Status</div>
+                <div class="text-sm">${getStatusBadge(job.status)}</div>
+            </div>
+            <div class="bg-surface-container-lowest p-3 rounded-lg">
+                <div class="text-xs text-outline font-label uppercase mb-1">Type</div>
+                <div class="text-sm font-medium">${job.job_type || 'analysis'}</div>
+            </div>
+            <div class="bg-surface-container-lowest p-3 rounded-lg">
+                <div class="text-xs text-outline font-label uppercase mb-1">Duration</div>
+                <div class="text-sm font-medium">${calcDuration(job.started_at, job.finished_at)}</div>
+            </div>
+        `;
+        document.getElementById('modal-job-info').innerHTML = infoHtml;
+        
+        // Error section
+        const errorSection = document.getElementById('modal-error-section');
+        if (job.error) {
+            errorSection.classList.remove('hidden');
+            document.getElementById('modal-error').textContent = job.error;
+        } else {
+            errorSection.classList.add('hidden');
+        }
+        
+        // Request payload
+        try {
+            const payload = job.payload_json ? JSON.parse(job.payload_json) : {};
+            document.getElementById('modal-request').textContent = JSON.stringify(payload, null, 2);
+        } catch {
+            document.getElementById('modal-request').textContent = job.payload_json || '{}';
+        }
+        
+        // Response/Result
+        try {
+            const result = job.raw_result ? JSON.parse(job.raw_result) : {};
+            document.getElementById('modal-response').textContent = JSON.stringify(result, null, 2);
+        } catch {
+            document.getElementById('modal-response').textContent = job.raw_result || '{}';
+        }
+        
+        // Snapshot
+        const snapshotSection = document.getElementById('modal-snapshot-section');
+        if (job.snapshot_path) {
+            snapshotSection.classList.remove('hidden');
+            document.getElementById('modal-snapshot').src = '/' + job.snapshot_path;
+        } else {
+            snapshotSection.classList.add('hidden');
+        }
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    } catch (e) {
+        console.error('Failed to load job details:', e);
+    }
+}
+
+function calcDuration(start, end) {
+    if (!start || !end) return '-';
+    try {
+        const s = new Date(start);
+        const e = new Date(end);
+        const diff = (e - s) / 1000;
+        if (diff < 60) return `${Math.round(diff)}s`;
+        if (diff < 3600) return `${Math.round(diff / 60)}m`;
+        return `${Math.round(diff / 3600)}h`;
+    } catch {
+        return '-';
+    }
+}
+
+function closeModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    const modal = document.getElementById('jobModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function cancelJob(jobId) {
+    if (!confirm(`Cancel job #${jobId}?`)) return;
+    try {
+        const resp = await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' });
+        if (resp.ok) {
+            showToast('Job cancelled', 'success');
+            loadJobs();
+            loadStats();
+        } else {
+            showToast('Failed to cancel job', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function retryJob(jobId) {
+    try {
+        const resp = await fetch(`/api/jobs/${jobId}/retry`, { method: 'POST' });
+        if (resp.ok) {
+            showToast('Job queued for retry', 'success');
+            loadJobs();
+            loadStats();
+        } else {
+            showToast('Failed to retry job', 'error');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function cancelSelectedJobs() {
+    const checkboxes = document.querySelectorAll('.job-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showToast('No jobs selected', 'error');
+        return;
+    }
+    if (!confirm(`Cancel ${checkboxes.length} selected job(s)?`)) return;
+    
+    const jobIds = Array.from(checkboxes).map(cb => cb.dataset.jobId);
+    
+    try {
+        const resp = await fetch('/api/jobs/bulk-cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_ids: jobIds })
+        });
+        const data = await resp.json();
+        showToast(`Cancelled ${data.cancelled || 0} jobs`, 'success');
+        loadJobs();
+        loadStats();
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function cancelAllJobs() {
+    if (!confirm('This will cancel ALL pending and running jobs. Continue?')) return;
+    if (!confirm('Are you sure? This cannot be undone.')) return;
+    
+    try {
+        const resp = await fetch('/api/jobs/cancel-all', { method: 'POST' });
+        const data = await resp.json();
+        showToast(`Cancelled ${data.cancelled || 0} jobs`, 'success');
+        loadJobs();
+        loadStats();
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function restartScheduler() {
+    if (!confirm('This will stop all jobs and restart fresh. Continue?')) return;
+    
+    try {
+        // First cancel all
+        await fetch('/api/jobs/cancel-all', { method: 'POST' });
+        
+        // Then reset cameras last_run_at
+        const resp = await fetch('/api/scheduler/reset', { method: 'POST' });
+        const data = await resp.json();
+        showToast('Scheduler restarted fresh', 'success');
+        loadJobs();
+        loadStats();
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    }
+}
+
+function clearFilters() {
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('cameraFilter').value = '';
+    document.getElementById('jobTypeFilter').value = '';
+    currentFilters = {};
+    currentPage = 1;
+    loadJobs();
+}
+
+function showToast(message, type) {
+    const region = document.getElementById('toast-region');
+    const toast = document.createElement('div');
+    toast.className = `px-4 py-3 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-500 text-white' : 'bg-error text-white'} font-label text-sm`;
+    toast.textContent = message;
+    region.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// Event listeners
+document.getElementById('filterForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    currentFilters = {
+        status: document.getElementById('statusFilter').value,
+        camera_id: document.getElementById('cameraFilter').value,
+        job_type: document.getElementById('jobTypeFilter').value
+    };
+    // Remove empty filters
+    Object.keys(currentFilters).forEach(key => {
+        if (!currentFilters[key]) delete currentFilters[key];
+    });
+    currentPage = 1;
+    loadJobs();
+});
+
+document.getElementById('page-prev').addEventListener('click', () => {
+    if (currentPage > 1) {
+        currentPage--;
+        loadJobs();
+    }
+});
+
+document.getElementById('page-next').addEventListener('click', () => {
+    currentPage++;
+    loadJobs();
+});
+
+document.getElementById('selectAllHeader').addEventListener('change', (e) => {
+    const checkboxes = document.querySelectorAll('.job-checkbox:not(:disabled)');
+    checkboxes.forEach(cb => cb.checked = e.target.checked);
+});
+
+document.getElementById('selectAll').addEventListener('change', (e) => {
+    document.getElementById('selectAllHeader').checked = e.target.checked;
+    document.getElementById('selectAllHeader').dispatchEvent(new Event('change'));
+});
+
+// Initialize
+loadCameras();
+loadStats();
+loadJobs();
+
+// Auto-refresh every 10 seconds
+setInterval(() => {
+    loadStats();
+    loadJobs();
+}, 10000);
+</script>
+{% endblock %}

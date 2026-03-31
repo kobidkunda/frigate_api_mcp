@@ -1,0 +1,177 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Factory Analytics
+      - navigation [ref=e6]:
+        - link "Dashboard" [ref=e7] [cursor=pointer]:
+          - /url: /dashboard
+        - link "Settings" [ref=e8] [cursor=pointer]:
+          - /url: /settings
+        - link "History" [ref=e9] [cursor=pointer]:
+          - /url: /history
+        - link "Groups" [ref=e10] [cursor=pointer]:
+          - /url: /groups
+        - link "Logs" [ref=e11] [cursor=pointer]:
+          - /url: /logs
+        - link "Control Center" [ref=e12] [cursor=pointer]:
+          - /url: /control-center
+        - link "API Explorer" [ref=e13] [cursor=pointer]:
+          - /url: /api-explorer
+    - generic [ref=e14]:
+      - button "Toggle theme" [ref=e15] [cursor=pointer]: Theme
+      - generic [ref=e17] [cursor=pointer]: notifications
+      - generic [ref=e19] [cursor=pointer]: account_circle
+  - generic [ref=e20]:
+    - complementary [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e23]: Industrial Sentinel
+        - generic [ref=e24]: v2.4.0-Stable
+      - navigation [ref=e25]:
+        - link "dashboard Overview" [ref=e26] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e27]: dashboard
+          - text: Overview
+        - link "videocam Cameras" [ref=e28] [cursor=pointer]:
+          - /url: /dashboard#cameras
+          - generic [ref=e29]: videocam
+          - text: Cameras
+        - link "group_work Groups" [ref=e30] [cursor=pointer]:
+          - /url: /groups
+          - generic [ref=e31]: group_work
+          - text: Groups
+        - link "leaderboard Analytics" [ref=e32] [cursor=pointer]:
+          - /url: /charts
+          - generic [ref=e33]: leaderboard
+          - text: Analytics
+        - link "speed Efficiency" [ref=e34] [cursor=pointer]:
+          - /url: /efficiency
+          - generic [ref=e35]: speed
+          - text: Efficiency
+        - link "description Reports" [ref=e36] [cursor=pointer]:
+          - /url: /history
+          - generic [ref=e37]: description
+          - text: Reports
+        - link "task_alt Jobs" [ref=e38] [cursor=pointer]:
+          - /url: /jobs
+          - generic [ref=e39]: task_alt
+          - text: Jobs
+      - generic [ref=e40]:
+        - link "api API Explorer" [ref=e41] [cursor=pointer]:
+          - /url: /api-explorer
+          - generic [ref=e42]: api
+          - text: API Explorer
+        - link "settings Control Center" [ref=e43] [cursor=pointer]:
+          - /url: /control-center
+          - generic [ref=e44]: settings
+          - text: Control Center
+    - main [ref=e45]:
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - heading "System Configuration" [level=1] [ref=e48]
+          - paragraph [ref=e49]: Manage your industrial data pipelines and AI integration parameters.
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - generic [ref=e52]:
+              - generic [ref=e53]: settings_input_component
+              - heading "Frigate Configuration" [level=2] [ref=e54]
+            - generic [ref=e55]:
+              - generic [ref=e56]:
+                - generic [ref=e57]: Server URL
+                - textbox "http://frigate.local:5000" [ref=e58]: http://192.168.88.90:5000
+              - generic [ref=e59]:
+                - generic [ref=e60]: Auth Mode
+                - combobox [ref=e61]:
+                  - option "Basic Auth"
+                  - option "Bearer Token"
+                  - option "None" [selected]
+              - generic [ref=e62]:
+                - generic [ref=e63]: Username
+                - textbox "admin" [ref=e64]
+              - generic [ref=e65]:
+                - generic [ref=e66]: Password
+                - textbox "••••••••" [ref=e67]
+              - generic [ref=e68]:
+                - generic [ref=e69]: Bearer Token
+                - textbox "eyJh..." [ref=e70]
+              - generic [ref=e71]:
+                - checkbox "Verify TLS Certificates" [ref=e72]
+                - generic [ref=e73]: Verify TLS Certificates
+          - generic [ref=e74]:
+            - generic [ref=e75]:
+              - generic [ref=e76]:
+                - generic [ref=e77]: psychology
+                - heading "Ollama AI Configuration" [level=2] [ref=e78]
+              - generic [ref=e79]:
+                - generic [ref=e80]: System Active
+                - checkbox [checked] [ref=e82]
+            - generic [ref=e84]:
+              - generic [ref=e85]:
+                - generic [ref=e86]: API Endpoint
+                - textbox "http://localhost:11434/api" [ref=e87]: http://192.168.88.97:11434
+              - generic [ref=e88]:
+                - generic [ref=e89]: Vision Model
+                - textbox "qwen2.5-vl:7b" [ref=e90]: qwen3.5:2b
+              - generic [ref=e91]:
+                - generic [ref=e92]: Timeout (sec)
+                - spinbutton [ref=e93]: "300"
+              - generic [ref=e94]:
+                - generic [ref=e95]: Keep Alive
+                - textbox "5m" [ref=e96]
+            - button "bolt Test Connection" [ref=e98] [cursor=pointer]:
+              - generic [ref=e99]: bolt
+              - text: Test Connection
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - generic [ref=e102]: image_search
+              - heading "Image Processing" [level=2] [ref=e103]
+            - generic [ref=e104]:
+              - generic [ref=e105]:
+                - generic [ref=e106]: Frames Per Process
+                - spinbutton [ref=e107]: "1"
+                - paragraph [ref=e108]: How many photos to collect per analysis cycle (1 photo/second)
+              - generic [ref=e109]:
+                - generic [ref=e110]: Collection Window (sec)
+                - spinbutton [ref=e111]: "3"
+                - paragraph [ref=e112]: Total seconds to collect frames. Frames collected = seconds (1 photo/sec)
+              - generic [ref=e113]:
+                - generic [ref=e114]: Resize Resolution
+                - combobox [ref=e115]:
+                  - option "Original (no resize)" [selected]
+                  - option "320p - Small (320px max edge)"
+                  - option "640p - Medium (640px max edge)"
+                  - option "720p - Large (720px max edge)"
+                - paragraph [ref=e116]: Images are resized to this max dimension while preserving aspect ratio
+              - generic [ref=e117]:
+                - generic [ref=e118]: JPEG Compression Quality
+                - combobox [ref=e119]:
+                  - option "100% - None (Recommended)" [selected]
+                  - option "80% - High quality"
+                  - option "60% - Medium"
+                  - option "40% - Low"
+                  - option "20% - Very low"
+                - paragraph [ref=e120]: Lower quality reduces file size and LLM cost
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - generic [ref=e123]:
+                - generic [ref=e124]: query_stats
+                - heading "Analysis Settings" [level=2] [ref=e125]
+              - generic [ref=e126]:
+                - generic [ref=e127]:
+                  - generic [ref=e128]: Polling Interval (s)
+                  - spinbutton [ref=e129]: "300"
+                - generic [ref=e130]:
+                  - generic [ref=e131]: Scheduler Enabled
+                  - checkbox [checked] [ref=e133]
+            - generic [ref=e135]:
+              - generic [ref=e136]:
+                - generic [ref=e137]: public
+                - heading "General" [level=2] [ref=e138]
+              - generic [ref=e139]:
+                - generic [ref=e140]:
+                  - generic [ref=e141]: Timezone
+                  - textbox "Asia/Kolkata" [ref=e142]
+                - paragraph [ref=e144]: System logs and alerts will be timestamped relative to the selected timezone above.
+          - button "Save Configuration" [ref=e146] [cursor=pointer]
+  - status

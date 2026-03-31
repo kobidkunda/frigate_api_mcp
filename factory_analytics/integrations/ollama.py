@@ -145,35 +145,63 @@ class OllamaClient:
                     f"Model {self.model} returned confidence out of range: {confidence}"
                 )
             boxes = parsed.get("boxes")
-            if group_mode and boxes is None:
-                boxes = []
             if not isinstance(boxes, list):
-                raise RuntimeError(f"Model {self.model} returned invalid boxes payload")
+                logger.warning(
+                    "Model %s returned non-list boxes (%s), defaulting to []",
+                    self.model,
+                    type(boxes).__name__,
+                )
+                boxes = []
             for item in boxes:
                 if not isinstance(item, dict):
-                    raise RuntimeError(
-                        f"Model {self.model} returned non-object box entry"
+                    logger.warning(
+                        "Model %s returned non-object box entry, skipping", self.model
                     )
+                    continue
                 if item.get("label") != "person":
-                    raise RuntimeError(
-                        f"Model {self.model} returned non-person box label: {item.get('label')}"
+                    logger.warning(
+                        "Model %s returned non-person box label: %s, skipping",
+                        self.model,
+                        item.get("label"),
                     )
+                    continue
                 box = item.get("box")
-                if not isinstance(box, list) or len(box) != 4:
-                    raise RuntimeError(
-                        f"Model {self.model} returned invalid box coordinates"
+                if not isinstance(box, list) or len(box) < 4:
+                    logger.warning(
+                        "Model %s returned invalid box coordinates, skipping",
+                        self.model,
                     )
-                for value in box:
+                    continue
+                # Take first 4 values and coerce to float
+                clean_box = []
+                skip_box = False
+                for value in box[:4]:
                     try:
                         num = float(value)
-                    except (TypeError, ValueError) as exc:
-                        raise RuntimeError(
-                            f"Model {self.model} returned non-numeric box coordinate"
-                        ) from exc
-                    if not (0.0 <= num <= 1.0):
-                        raise RuntimeError(
-                            f"Model {self.model} returned box coordinate out of range: {num}"
+                    except (TypeError, ValueError):
+                        logger.warning(
+                            "Model %s returned non-numeric box coordinate: %s, skipping",
+                            self.model,
+                            value,
                         )
+                        skip_box = True
+                        break
+                    clean_box.append(num)
+                if skip_box:
+                    continue
+                # Normalize pixel coordinates to 0-1 range
+                if any(v > 1.0 for v in clean_box):
+                    # Looks like pixel coordinates - attempt normalization
+                    max_val = max(clean_box)
+                    if max_val > 0:
+                        clean_box = [v / max_val for v in clean_box]
+                        logger.info(
+                            "Normalized box coordinates from pixel values (max=%.1f)",
+                            max_val,
+                        )
+                # Clamp to 0-1
+                clean_box = [max(0.0, min(1.0, v)) for v in clean_box]
+                item["box"] = clean_box
             return {
                 "label": label,
                 "confidence": confidence,

@@ -1,0 +1,217 @@
+{% extends "partials/base.html" %}
+{% block title %}Worker Efficiency{% endblock %}
+{% block content %}
+<style>
+  .hm-sq:hover { transform: scale(1.4); box-shadow: 0 0 6px rgba(255,255,255,0.5); z-index: 10; position: relative; }
+</style>
+<!-- ApexCharts CDN -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<header class="mb-6">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-1">Worker Efficiency</h1>
+      <p class="text-on-surface-variant font-body">Real-time productivity analytics with shift-wise breakdown</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 text-xs flex-wrap">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" style="background:#00E396"></span>Working</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" style="background:#FEB019"></span>Idle</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" style="background:#775DD0"></span>Operator Missing</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" style="background:#FF4560"></span>Stopped</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" style="background:#C7C7C7"></span>Uncertain</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Controls Bar -->
+<div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-4 mb-6">
+  <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+    <div class="flex items-center gap-2 bg-surface-container-high rounded-lg p-1">
+      <button type="button" data-view="daily" class="view-toggle px-4 py-2 rounded-md text-xs font-medium transition-all duration-200 bg-primary text-on-primary">Daily</button>
+      <button type="button" data-view="weekly" class="view-toggle px-4 py-2 rounded-md text-xs font-medium transition-all duration-200 text-on-surface-variant hover:bg-surface-container">Weekly</button>
+      <button type="button" data-view="monthly" class="view-toggle px-4 py-2 rounded-md text-xs font-medium transition-all duration-200 text-on-surface-variant hover:bg-surface-container">Monthly</button>
+    </div>
+    <div class="flex items-center gap-3">
+      <button id="prevDate" class="p-2 rounded-lg border border-outline-variant/20 hover:bg-surface-container transition-colors">
+        <svg class="w-4 h-4 text-on-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <input type="date" id="datePicker" class="bg-surface-container-high border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/50">
+      <button id="nextDate" class="p-2 rounded-lg border border-outline-variant/20 hover:bg-surface-container transition-colors">
+        <svg class="w-4 h-4 text-on-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <button id="todayBtn" class="px-3 py-2 rounded-lg bg-surface-container-high border border-outline-variant/20 text-xs font-medium text-on-surface hover:bg-surface-container transition-colors">Today</button>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-4">
+    <div class="text-xs font-medium text-on-surface-variant uppercase tracking-wider mb-1">Total Efficiency</div>
+    <div class="text-2xl font-bold text-on-surface" id="totalEfficiency">--%</div>
+  </div>
+  <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-4">
+    <div class="text-xs font-medium text-on-surface-variant uppercase tracking-wider mb-1">Working Time</div>
+    <div class="text-2xl font-bold text-emerald-500" id="workingTime">--</div>
+  </div>
+  <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-4">
+    <div class="text-xs font-medium text-on-surface-variant uppercase tracking-wider mb-1">Idle Time</div>
+    <div class="text-2xl font-bold text-amber-500" id="idleTime">--</div>
+  </div>
+  <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-4">
+    <div class="text-xs font-medium text-on-surface-variant uppercase tracking-wider mb-1">Active Workers</div>
+    <div class="text-2xl font-bold text-primary" id="activeWorkers">--</div>
+  </div>
+</div>
+
+<!-- Activity Heatmap -->
+<div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-6 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h2 class="text-lg font-headline font-bold text-on-surface mb-1">Activity Heatmap</h2>
+      <p class="text-sm text-on-surface-variant" id="heatmapSubtitle">Per-minute worker status visualization</p>
+    </div>
+    <button id="refreshData" class="p-2 rounded-lg border border-outline-variant/20 hover:bg-surface-container transition-colors" title="Refresh">
+      <svg class="w-4 h-4 text-on-surface" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+    </button>
+  </div>
+  <!-- Daily custom grid view -->
+  <div id="dailyGridView" class="heatmap-view">
+    <div style="overflow-x:auto;overflow-y:visible;max-height:none">
+      <div id="dailyGrid"></div>
+    </div>
+  </div>
+  <!-- Weekly/Monthly ApexCharts view -->
+  <div id="chartView" class="heatmap-view hidden">
+    <div id="heatmapChart"></div>
+  </div>
+</div>
+
+<!-- Cell Detail Popover -->
+<div id="cellDetailPopover" class="fixed z-50 hidden bg-surface-container-high border border-outline-variant/30 rounded-xl shadow-2xl p-4 max-w-sm" style="box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+  <div class="flex items-center justify-between mb-3">
+    <span id="popoverTitle" class="text-sm font-bold text-on-surface"></span>
+    <button id="popoverClose" class="p-1 rounded-full hover:bg-surface-container transition-colors">
+      <svg class="w-4 h-4 text-on-surface-variant" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="space-y-2.5">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm text-primary">category</span>
+      <span class="text-xs text-on-surface-variant w-24">Classification</span>
+      <span id="popoverClassification" class="text-xs font-medium text-on-surface px-2 py-0.5 rounded-full"></span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm text-primary">info</span>
+      <span class="text-xs text-on-surface-variant w-24">Metadata</span>
+      <span id="popoverMetadata" class="text-xs font-medium text-on-surface"></span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm text-primary">schedule</span>
+      <span class="text-xs text-on-surface-variant w-24">Temporal Span</span>
+      <span id="popoverTemporal" class="text-xs font-medium text-on-surface"></span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm text-primary">image</span>
+      <span class="text-xs text-on-surface-variant w-24">Visual Evidence</span>
+      <a id="popoverEvidence" href="#" target="_blank" class="text-xs font-medium text-primary hover:underline">View Evidence</a>
+    </div>
+    <div class="pt-2 border-t border-outline-variant/20">
+      <a id="popoverDetails" href="#" class="flex items-center gap-2 text-xs font-medium text-primary hover:underline">
+        <span class="material-symbols-outlined text-sm">open_in_new</span> View Log Details
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Segment Detail Modal -->
+<div id="segmentModal" class="fixed inset-0 z-50 hidden flex items-center justify-center" style="background:rgba(0,0,0,0.6)">
+  <div class="bg-surface-container-high border border-outline-variant/20 rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-4 border-b border-outline-variant/10 sticky top-0 bg-surface-container-high rounded-t-2xl">
+      <h3 id="modalTitle" class="text-base font-bold text-on-surface">Segment Details</h3>
+      <button id="modalClose" class="p-1 rounded-full hover:bg-surface-container transition-colors">
+        <svg class="w-5 h-5 text-on-surface-variant" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="modalBody" class="p-4 space-y-4">
+      <div class="text-center py-8 text-on-surface-variant text-sm">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Shift Performance & Top Performers -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+  <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-6">
+    <h2 class="text-lg font-headline font-bold text-on-surface mb-4">Shift Performance</h2>
+    <div class="space-y-4">
+      <div class="flex items-center gap-4">
+        <div class="w-16 text-sm font-medium text-on-surface">Day</div>
+        <div class="flex-1 h-8 bg-surface-container-high rounded-full overflow-hidden">
+          <div id="dayShiftBar" class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <div class="w-16 text-right text-sm font-bold text-emerald-500" id="dayShiftPct">--%</div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="w-16 text-sm font-medium text-on-surface">Night</div>
+        <div class="flex-1 h-8 bg-surface-container-high rounded-full overflow-hidden">
+          <div id="nightShiftBar" class="h-full bg-blue-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <div class="w-16 text-right text-sm font-bold text-blue-500" id="nightShiftPct">--%</div>
+      </div>
+    </div>
+    <div class="mt-4 pt-4 border-t border-outline-variant/10 grid grid-cols-2 gap-4">
+      <div>
+        <div class="text-xs text-on-surface-variant mb-1">Day Shift (06:00-18:00)</div>
+        <div class="text-lg font-bold text-on-surface" id="dayShiftStats">--</div>
+      </div>
+      <div>
+        <div class="text-xs text-on-surface-variant mb-1">Night Shift (18:00-06:00)</div>
+        <div class="text-lg font-bold text-on-surface" id="nightShiftStats">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-6">
+    <h2 class="text-lg font-headline font-bold text-on-surface mb-4">Top Performers</h2>
+    <div id="topPerformersList" class="space-y-3"></div>
+  </div>
+</div>
+
+<!-- Activity Log -->
+<div class="bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-headline font-bold text-on-surface">Activity Log</h2>
+    <button id="exportData" class="px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export CSV
+    </button>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-outline-variant/20">
+          <th class="text-left py-3 px-4 font-medium text-on-surface-variant">Time</th>
+          <th class="text-left py-3 px-4 font-medium text-on-surface-variant">Camera</th>
+          <th class="text-left py-3 px-4 font-medium text-on-surface-variant">Status</th>
+          <th class="text-left py-3 px-4 font-medium text-on-surface-variant">Duration</th>
+          <th class="text-left py-3 px-4 font-medium text-on-surface-variant">Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="activityLogBody" class="divide-y divide-outline-variant/10"></tbody>
+    </table>
+  </div>
+  <div class="mt-4 flex items-center justify-between">
+    <div class="text-xs text-on-surface-variant">
+      Showing <span id="showingStart">0</span>-<span id="showingEnd">0</span> of <span id="totalRecords">0</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="prevPage" class="px-3 py-1 rounded border border-outline-variant/20 text-xs hover:bg-surface-container transition-colors disabled:opacity-50">Previous</button>
+      <span class="text-xs text-on-surface-variant">Page <span id="currentPage">1</span></span>
+      <button id="nextPage" class="px-3 py-1 rounded border border-outline-variant/20 text-xs hover:bg-surface-container transition-colors disabled:opacity-50">Next</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/efficiency.js"></script>
+{% endblock %}

@@ -37,6 +37,16 @@ class WorkerLoop:
         max_errors = 10
         while not self.stop_event.is_set():
             try:
+                settings = self.db.get_settings()
+
+                # Auto-expire running jobs that exceeded timeout
+                timeout = int(settings.get("job_timeout_seconds", 600))
+                expired = self.db.expire_timed_out_jobs(timeout)
+                if expired:
+                    logger.info(
+                        "Expired %d timed-out job(s) (timeout=%ds)", expired, timeout
+                    )
+
                 self._schedule_due_groups()
                 self._schedule_due_cameras()
                 processed = self.service.process_one_pending_job()
@@ -87,20 +97,22 @@ class WorkerLoop:
                     due = True
 
             if due:
-                # Schedule all enabled cameras in this group
+                # Schedule ONE group analysis job for the entire group
                 cameras = self.db.list_group_cameras(group["id"])
-                for camera in cameras:
-                    if camera.get("enabled"):
-                        self.db.schedule_group_job(
-                            camera_id=camera["id"],
-                            group_id=group["id"],
-                            group_type=group["group_type"],
-                            group_name=group["name"],
-                        )
+                enabled_cameras = [c for c in cameras if c.get("enabled")]
+                if enabled_cameras:
+                    # Use first enabled camera as anchor
+                    anchor_camera = enabled_cameras[0]
+                    self.db.schedule_group_job(
+                        camera_id=anchor_camera["id"],
+                        group_id=group["id"],
+                        group_type=group["group_type"],
+                        group_name=group["name"],
+                    )
 
-                # Update group last_run_at immediately (even though jobs not complete)
-                # This prevents re-scheduling while jobs are running
-                self.db.update_group(group["id"], last_run_at=now.isoformat())
+                    # Update group last_run_at immediately (even though jobs not complete)
+                    # This prevents re-scheduling while jobs are running
+                    self.db.update_group(group["id"], last_run_at=now.isoformat())
 
     def _schedule_due_cameras(self):
         settings = self.db.get_settings()

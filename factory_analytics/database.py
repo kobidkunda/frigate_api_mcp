@@ -47,6 +47,8 @@ DEFAULT_SETTINGS = {
     "llm_seconds_window": 3,
     "image_resize_resolution": "original",
     "image_compression_quality": 100,
+    # NEW: Job timeout
+    "job_timeout_seconds": 600,
 }
 
 
@@ -776,6 +778,107 @@ class Database:
             ]
         return {"items": items, "total": total, "page": page, "page_size": page_size}
 
+    def list_photos_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        days: list[int] | None = None,
+        time_from: int | None = None,
+        time_to: int | None = None,
+        cameras: list[int] | None = None,
+        groups: list[int] | None = None,
+        labels: list[str] | None = None,
+        tz_name: str = "UTC",
+    ) -> dict[str, Any]:
+        conditions = ["s.evidence_path IS NOT NULL", "s.evidence_path != ''"]
+        params: list[Any] = []
+
+        if date_from is not None:
+            conditions.append("DATE(s.start_ts) >= DATE(?)")
+            params.append(date_from)
+        if date_to is not None:
+            conditions.append("DATE(s.start_ts) <= DATE(?)")
+            params.append(date_to)
+
+        if days is not None and len(days) > 0:
+            placeholders = ",".join("?" * len(days))
+            conditions.append(
+                f"CAST(STRFTIME('%w', s.start_ts) AS INTEGER) IN ({placeholders})"
+            )
+            params.extend(days)
+
+        if time_from is not None and time_to is not None:
+            conditions.append(
+                "CAST(STRFTIME('%H', s.start_ts) AS INTEGER) BETWEEN ? AND ?"
+            )
+            params.append(time_from)
+            params.append(time_to)
+
+        if cameras is not None and len(cameras) > 0:
+            placeholders = ",".join("?" * len(cameras))
+            conditions.append(f"s.camera_id IN ({placeholders})")
+            params.extend(cameras)
+
+        if groups is not None and len(groups) > 0:
+            placeholders = ",".join("?" * len(groups))
+            conditions.append(
+                f"EXISTS (SELECT 1 FROM camera_groups cg WHERE cg.camera_id = s.camera_id AND cg.group_id IN ({placeholders}))"
+            )
+            params.extend(groups)
+
+        if labels is not None and len(labels) > 0:
+            placeholders = ",".join("?" * len(labels))
+            conditions.append(f"s.label IN ({placeholders})")
+            params.extend(labels)
+
+        where = " WHERE " + " AND ".join(conditions)
+        offset = (max(page, 1) - 1) * page_size
+
+        with self.connect() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM segments s{where}",
+                params,
+            ).fetchone()[0]
+
+            rows = conn.execute(
+                f"""SELECT s.id, s.camera_id, s.start_ts, s.end_ts, s.label, s.confidence, s.notes, s.evidence_path, s.reviewed_label,
+                    c.name AS camera_name,
+                    COALESCE(
+                        (SELECT GROUP_CONCAT(g.name, ', ')
+                         FROM groups g
+                         JOIN camera_groups cg ON cg.group_id = g.id
+                         WHERE cg.camera_id = s.camera_id), ''
+                    ) AS group_names
+                    FROM segments s
+                    JOIN cameras c ON c.id = s.camera_id{where}
+                    ORDER BY s.created_at DESC
+                    LIMIT ? OFFSET ?""",
+                (*params, page_size, offset),
+            ).fetchall()
+
+            items = []
+            for row in rows:
+                item = dict(row)
+                if item.get("start_ts") and item.get("end_ts"):
+                    try:
+                        start = datetime.fromisoformat(item["start_ts"])
+                        end = datetime.fromisoformat(item["end_ts"])
+                        item["duration_seconds"] = int((end - start).total_seconds())
+                    except Exception:
+                        item["duration_seconds"] = 0
+                else:
+                    item["duration_seconds"] = 0
+                items.append(item)
+
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+            }
+
     def review_segment(
         self,
         segment_id: int,
@@ -1410,3 +1513,61 @@ class Database:
                 (utcnow(),),
             )
             return {"ok": True, "cancelled": cur.rowcount}
+
+    def expire_timed_out_jobs(self, timeout_seconds: int) -> int:
+        """Cancel running jobs that have been running longer than timeout_seconds.
+
+        Returns number of expired jobs cancelled.
+        """
+        with self.connect() as conn:
+            cur = conn.execute(
+                """UPDATE jobs 
+                   SET status='cancelled', 
+                       error='Timed out (exceeded ' || ? || 's)', 
+                       finished_at=? 
+                   WHERE status='running' 
+                     AND started_at IS NOT NULL 
+                     AND (julianday(?) - julianday(started_at)) * 86400 > ?""",
+                (
+                    timeout_seconds,
+                    utcnow(),
+                    utcnow(),
+                    timeout_seconds,
+                ),
+            )
+            expired = cur.rowcount
+        if expired:
+            logger.info(
+                "Expired %d timed-out job(s) (timeout=%ds)", expired, timeout_seconds
+            )
+        return expired
+
+    def job_stats(self) -> dict[str, Any]:
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                    SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running,
+                    SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+                    SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
+                FROM jobs"""
+            ).fetchone()
+            if not row:
+                return {
+                    "total": 0,
+                    "pending": 0,
+                    "running": 0,
+                    "success": 0,
+                    "failed": 0,
+                    "cancelled": 0,
+                }
+            return {
+                "total": row["total"] or 0,
+                "pending": row["pending"] or 0,
+                "running": row["running"] or 0,
+                "success": row["success"] or 0,
+                "failed": row["failed"] or 0,
+                "cancelled": row["cancelled"] or 0,
+            }

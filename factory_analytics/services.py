@@ -21,6 +21,11 @@ from factory_analytics.logging_setup import setup_logging
 
 logger = setup_logging()
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 
 class AnalyticsService:
     def __init__(self, db: Database):
@@ -353,9 +358,11 @@ class AnalyticsService:
         camera = self.db.get_camera(job["camera_id"])
         try:
             img_settings = self._get_image_settings()
-            snapshot_path = self._process_frame_collection_for_camera(
+            frame_result = self._process_frame_collection_for_camera(
                 camera, img_settings
             )
+            snapshot_path = frame_result["strip_path"]
+            frame_paths = frame_result["frame_paths"]
             annotated_path = self._annotated_snapshot_path(camera["frigate_name"])
             result = self.ollama_client().classify_image(snapshot_path)
             draw_person_boxes(snapshot_path, annotated_path, result.get("boxes", []))
@@ -388,10 +395,15 @@ class AnalyticsService:
                     "last_status": "ok",
                 },
             )
+            stored_result = dict(result)
+            if frame_paths:
+                stored_result["frame_paths"] = [
+                    str(p.relative_to(DATA_ROOT.parent)) for p in frame_paths
+                ]
             self.db.mark_job_finished(
                 job["id"],
                 "success",
-                raw_result=result,
+                raw_result=stored_result,
                 snapshot_path=str(annotated_path.relative_to(DATA_ROOT.parent)),
             )
             return {"job": self.db.get_job(job["id"]), "segment": segment}
@@ -439,15 +451,21 @@ class AnalyticsService:
 
         anchor_camera = cameras[0]
         strip_paths: list[tuple[str, Path]] = []
+        all_frame_paths: dict[str, list[str]] = {}
         included_cameras: list[str] = []
         missing_cameras: list[str] = []
 
         for camera in cameras:
             try:
-                strip_path = self._process_frame_collection_for_camera(
+                frame_result = self._process_frame_collection_for_camera(
                     camera, img_settings
                 )
-                strip_paths.append((camera["frigate_name"], strip_path))
+                strip_paths.append((camera["frigate_name"], frame_result["strip_path"]))
+                if frame_result["frame_paths"]:
+                    all_frame_paths[camera["frigate_name"]] = [
+                        str(p.relative_to(DATA_ROOT.parent))
+                        for p in frame_result["frame_paths"]
+                    ]
                 included_cameras.append(camera["frigate_name"])
             except Exception:
                 missing_cameras.append(camera["frigate_name"])
@@ -500,6 +518,24 @@ class AnalyticsService:
             "group_name": group["name"],
             "group_type": group["group_type"],
             "segment_id": segment["id"],
+        }
+        if all_frame_paths:
+            stored_result["frame_paths"] = all_frame_paths
+
+        self.db.mark_job_finished(
+            job["id"],
+            "success",
+            raw_result=stored_result,
+            snapshot_path=str(annotated.relative_to(DATA_ROOT.parent)),
+        )
+
+        return {
+            "ok": True,
+            "group": group,
+            "job_id": job["id"],
+            "segment_id": segment["id"],
+            "camera_count": len(included_cameras),
+            "missing_count": len(missing_cameras),
         }
 
         self.db.mark_job_finished(
@@ -587,8 +623,11 @@ class AnalyticsService:
             "720p": 720,
             "original": 0,
         }
+        # 1 photo/sec × llm_seconds_window seconds = total frames
+        frames_count = max(1, int(settings.get("llm_seconds_window", 3)))
+        fps = max(1, int(settings.get("llm_frames_per_process", 1)))
         return {
-            "frames": int(settings.get("llm_frames_per_process", 1)),
+            "frames": frames_count * fps,
             "resolution": resolution_map.get(
                 settings.get("image_resize_resolution", "original"), 0
             ),
@@ -597,13 +636,22 @@ class AnalyticsService:
 
     def _process_frame_collection_for_camera(
         self, camera: dict[str, Any], img_settings: dict[str, Any]
-    ) -> Path:
+    ) -> dict[str, Any]:
+        """Collect frames for a camera, process them, build a strip.
+
+        Returns dict with:
+          - strip_path: Path to the vertical strip (for LLM classification)
+          - frame_paths: List of individual frame paths
+        """
         frigate = self.frigate_client()
         camera_name = camera["frigate_name"]
         count = img_settings["frames"]
 
         if count <= 1:
-            return self._capture_snapshot(camera_name)
+            return {
+                "strip_path": self._capture_snapshot(camera_name),
+                "frame_paths": [],
+            }
 
         frames = fetch_frames(frigate, camera_name, count)
 
@@ -612,16 +660,35 @@ class AnalyticsService:
             frames = [resize_pil_image(f, max_dim) for f in frames]
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        frame_dir = DATA_ROOT / "evidence" / "frames" / f"{camera_name}_{stamp}"
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        quality = img_settings["quality"]
+        frame_paths = []
+        for i, f in enumerate(frames):
+            fp = frame_dir / f"frame_{i}.jpg"
+            f.save(str(fp), "JPEG", quality=quality)
+            frame_paths.append(fp)
+
+        if len(frame_paths) == 1:
+            return {
+                "strip_path": frame_paths[0],
+                "frame_paths": frame_paths,
+            }
+
         strip_name = f"{camera_name}_{stamp}_strip.jpg"
         strip_path = DATA_ROOT / "evidence" / "snapshots" / strip_name
+        strip_path = build_vertical_strip(frames, camera_name, strip_path)
 
-        quality = img_settings["quality"]
-        if len(frames) == 1:
-            strip_path.parent.mkdir(parents=True, exist_ok=True)
-            frames[0].save(str(strip_path), "JPEG", quality=quality)
-            return strip_path
+        # Save strip at the same quality
+        strip_path.parent.mkdir(parents=True, exist_ok=True)
+        # Re-save strip with configured quality
+        strip_img = Image.open(str(strip_path)).convert("RGB")
+        strip_img.save(str(strip_path), "JPEG", quality=quality)
 
-        return build_vertical_strip(frames, camera_name, strip_path)
+        return {
+            "strip_path": strip_path,
+            "frame_paths": frame_paths,
+        }
 
     def _annotated_snapshot_path(self, camera_name: str) -> Path:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -828,3 +895,32 @@ class AnalyticsService:
     ) -> dict[str, Any]:
         """Get heatmap chart data for enabled cameras in groups."""
         return self.db.efficiency_heatmap_chart(from_date, to_date, view)
+
+    def photos_paginated(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        days: list[int] | None = None,
+        time_from: int | None = None,
+        time_to: int | None = None,
+        cameras: list[int] | None = None,
+        groups: list[int] | None = None,
+        labels: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Get paginated photos with evidence, with filtering."""
+        tz_name = self.settings().get("timezone") or "UTC"
+        return self.db.list_photos_paginated(
+            page=page,
+            page_size=page_size,
+            date_from=date_from,
+            date_to=date_to,
+            days=days,
+            time_from=time_from,
+            time_to=time_to,
+            cameras=cameras,
+            groups=groups,
+            labels=labels,
+            tz_name=tz_name,
+        )

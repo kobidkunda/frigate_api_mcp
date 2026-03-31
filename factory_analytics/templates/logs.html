@@ -39,9 +39,10 @@
 </div>
 </section>
 <script>
-    let currentLog = 'api';
-    let autoRefreshInterval = null;
-    async function loadLog(name) {
+// Cache bust: 2026-03-31-v2
+let currentLog = 'api';
+let autoRefreshInterval = null;
+async function loadLog(name) {
       currentLog = name;
       const region = document.getElementById('logs-region');
       const loading = document.getElementById('logs-loading');
