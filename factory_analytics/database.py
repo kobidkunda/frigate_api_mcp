@@ -935,27 +935,27 @@ class Database:
         with self.connect() as conn:
             rows = conn.execute(
                 """SELECT c.name AS camera_name,
-                          CAST(strftime('%H', s.start_ts) AS INTEGER) AS hour_bucket,
-                          COUNT(*) AS count
-                   FROM segments s JOIN cameras c ON c.id = s.camera_id
-                   GROUP BY c.name, hour_bucket
-                   ORDER BY c.name, hour_bucket"""
+                CAST(strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS INTEGER) AS hour_bucket,
+                COUNT(*) AS count
+                FROM segments s JOIN cameras c ON c.id = s.camera_id
+                GROUP BY c.name, hour_bucket
+                ORDER BY c.name, hour_bucket"""
             ).fetchall()
-        return {"rows": [dict(row) for row in rows]}
+            return {"rows": [dict(row) for row in rows]}
 
     def chart_heatmap_by_group(self) -> dict[str, Any]:
         with self.connect() as conn:
             rows = conn.execute(
                 """SELECT g.group_type, g.name AS group_name,
-                          CAST(strftime('%H', s.start_ts) AS INTEGER) AS hour_bucket,
-                          COUNT(*) AS count
-                   FROM segments s
-                   JOIN camera_groups cg ON cg.camera_id = s.camera_id
-                   JOIN groups g ON g.id = cg.group_id
-                   GROUP BY g.group_type, g.name, hour_bucket
-                   ORDER BY g.group_type, g.name, hour_bucket"""
+                CAST(strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS INTEGER) AS hour_bucket,
+                COUNT(*) AS count
+                FROM segments s
+                JOIN camera_groups cg ON cg.camera_id = s.camera_id
+                JOIN groups g ON g.id = cg.group_id
+                GROUP BY g.group_type, g.name, hour_bucket
+                ORDER BY g.group_type, g.name, hour_bucket"""
             ).fetchall()
-        return {"rows": [dict(row) for row in rows]}
+            return {"rows": [dict(row) for row in rows]}
 
     def chart_shift_summary(self, tz_name: str = "UTC") -> dict[str, Any]:
         with self.connect() as conn:
@@ -1092,27 +1092,27 @@ class Database:
 
             where_clause = " AND ".join(conditions)
 
-            # Get segments with minute-level granularity
-            rows = conn.execute(
-                f"""SELECT
-                    s.id AS segment_id,
-                    c.name AS camera_name,
-                    c.id AS camera_id,
-                    strftime('%H', s.start_ts) AS hour,
-                    strftime('%M', s.start_ts) AS minute,
-                    s.label,
-                    s.confidence,
-                    s.start_ts,
-                    s.end_ts,
-                    ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60) AS duration_minutes
-                FROM segments s
-                JOIN cameras c ON c.id = s.camera_id
-                WHERE {where_clause}
-                ORDER BY c.name, s.start_ts""",
-                params,
-            ).fetchall()
+        # Get segments with minute-level granularity
+        # Convert UTC to local timezone for hour display
+        rows = conn.execute(
+            f"""SELECT
+            s.id AS segment_id,
+            c.name AS camera_name,
+            c.id AS camera_id,
+            strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS hour,
+            s.label,
+            s.confidence,
+            s.start_ts,
+            s.end_ts,
+            ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60) AS duration_minutes
+            FROM segments s
+            JOIN cameras c ON c.id = s.camera_id
+            WHERE {where_clause}
+            ORDER BY c.name, s.start_ts""",
+            params,
+        ).fetchall()
 
-            return {"rows": [dict(row) for row in rows], "date": date}
+        return {"rows": [dict(row) for row in rows], "date": date}
 
     def efficiency_summary(
         self, from_date: str, to_date: str, camera_id: int | None = None
@@ -1173,16 +1173,16 @@ class Database:
                 params,
             ).fetchall()
 
-            # Shift breakdown (day: 06:00-18:00, night: 18:00-06:00)
+            # Shift breakdown (day: 06:00-18:00, night: 18:00-06:00) in local timezone
             shift_data = conn.execute(
-                f"""SELECT 
-                    CASE 
-                        WHEN CAST(strftime('%H', s.start_ts) AS INTEGER) BETWEEN 6 AND 17 THEN 'day'
-                        ELSE 'night'
-                    END AS shift,
-                    COUNT(*) AS total_segments,
-                    SUM(CASE WHEN s.label = 'working' THEN 1 ELSE 0 END) AS working_count,
-                    ROUND(AVG(CASE WHEN s.label = 'working' THEN s.confidence ELSE NULL END) * 100, 1) AS efficiency_pct
+                f"""SELECT
+                CASE
+                WHEN CAST(strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS INTEGER) BETWEEN 6 AND 17 THEN 'day'
+                ELSE 'night'
+                END AS shift,
+                COUNT(*) AS total_segments,
+                SUM(CASE WHEN s.label = 'working' THEN 1 ELSE 0 END) AS working_count,
+                ROUND(AVG(CASE WHEN s.label = 'working' THEN s.confidence ELSE NULL END) * 100, 1) AS efficiency_pct
                 FROM segments s
                 WHERE {where_clause}
                 GROUP BY shift""",
@@ -1211,17 +1211,17 @@ class Database:
             where_clause = " AND ".join(conditions)
 
             rows = conn.execute(
-                f"""SELECT 
-                    DATE(s.start_ts) AS date,
-                    c.name AS camera_name,
-                    c.id AS camera_id,
-                    strftime('%H', s.start_ts) AS hour,
-                    s.label,
-                    COUNT(*) AS count,
-                    ROUND(AVG(s.confidence) * 100, 1) AS avg_confidence,
-                    ROUND(SUM(
-                        (julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60
-                    ), 2) AS total_minutes
+                f"""SELECT
+                DATE(s.start_ts) AS date,
+                c.name AS camera_name,
+                c.id AS camera_id,
+                strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS hour,
+                s.label,
+                COUNT(*) AS count,
+                ROUND(AVG(s.confidence) * 100, 1) AS avg_confidence,
+                ROUND(SUM(
+                (julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60
+                ), 2) AS total_minutes
                 FROM segments s
                 JOIN cameras c ON c.id = s.camera_id
                 WHERE {where_clause}
@@ -1314,17 +1314,17 @@ class Database:
                 placeholders = ",".join("?" * len(camera_ids))
                 rows = conn.execute(
                     f"""SELECT s.camera_id,
-                               strftime('%H', s.start_ts) AS hour,
-                               s.label,
-                               COUNT(*) AS count,
-                               AVG(s.confidence) AS avg_confidence,
-                               SUM(ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60, 1)) AS total_minutes,
-                               GROUP_CONCAT(s.id) AS segment_ids
-                        FROM segments s
-                        WHERE DATE(s.start_ts) = ?
-                          AND s.camera_id IN ({placeholders})
-                        GROUP BY s.camera_id, hour, s.label
-                        ORDER BY s.camera_id, hour""",
+                    strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS hour,
+                    s.label,
+                    COUNT(*) AS count,
+                    AVG(s.confidence) AS avg_confidence,
+                    SUM(ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60, 1)) AS total_minutes,
+                    GROUP_CONCAT(s.id) AS segment_ids
+                    FROM segments s
+                    WHERE DATE(s.start_ts) = ?
+                    AND s.camera_id IN ({placeholders})
+                    GROUP BY s.camera_id, hour, s.label
+                    ORDER BY s.camera_id, hour""",
                     [from_date] + camera_ids,
                 ).fetchall()
 
@@ -1572,7 +1572,6 @@ class Database:
                 "failed": row["failed"] or 0,
                 "cancelled": row["cancelled"] or 0,
             }
-
 
     def get_expired_evidence_paths(self, retention_days: int) -> list[str]:
         """Get evidence paths for segments older than retention_days.
