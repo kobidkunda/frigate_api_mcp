@@ -15,3 +15,10 @@ venv.bak/
 *.log
 .worktrees/
 *data/evidence/*
+# Runtime files
+data/db/*.db
+run/*.pid
+
+# Debug and test artifacts
+debug-*.json
+.playwright-mcp/
