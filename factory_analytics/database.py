@@ -1083,7 +1083,11 @@ class Database:
         """Get per-minute efficiency data for a specific date (active cameras only)."""
         with self.connect() as conn:
             # Build query conditions - only include active cameras
-            conditions = ["DATE(s.start_ts) = ?", "c.enabled = 1"]
+            # Use timezone-converted date to match local day boundaries
+            conditions = [
+                "DATE(datetime(s.start_ts, '+5 hours', '+30 minutes')) = ?",
+                "c.enabled = 1",
+            ]
             params = [date]
 
             if camera_id is not None:
@@ -1092,27 +1096,27 @@ class Database:
 
             where_clause = " AND ".join(conditions)
 
-        # Get segments with minute-level granularity
-        # Convert UTC to local timezone for hour display
-        rows = conn.execute(
-            f"""SELECT
-            s.id AS segment_id,
-            c.name AS camera_name,
-            c.id AS camera_id,
-            strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS hour,
-            s.label,
-            s.confidence,
-            s.start_ts,
-            s.end_ts,
-            ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60) AS duration_minutes
-            FROM segments s
-            JOIN cameras c ON c.id = s.camera_id
-            WHERE {where_clause}
-            ORDER BY c.name, s.start_ts""",
-            params,
-        ).fetchall()
+            # Get segments with minute-level granularity
+            # Convert UTC to local timezone for hour display
+            rows = conn.execute(
+                f"""SELECT
+                s.id AS segment_id,
+                c.name AS camera_name,
+                c.id AS camera_id,
+                strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS hour,
+                s.label,
+                s.confidence,
+                s.start_ts,
+                s.end_ts,
+                ROUND((julianday(s.end_ts) - julianday(s.start_ts)) * 24 * 60) AS duration_minutes
+                FROM segments s
+                JOIN cameras c ON c.id = s.camera_id
+                WHERE {where_clause}
+                ORDER BY c.name, s.start_ts""",
+                params,
+            ).fetchall()
 
-        return {"rows": [dict(row) for row in rows], "date": date}
+            return {"rows": [dict(row) for row in rows], "date": date}
 
     def efficiency_summary(
         self, from_date: str, to_date: str, camera_id: int | None = None
@@ -1173,11 +1177,11 @@ class Database:
                 params,
             ).fetchall()
 
-            # Shift breakdown (day: 06:00-18:00, night: 18:00-06:00) in local timezone
+            # Shift breakdown (day: 09:00-21:00, night: 21:00-09:00) in local timezone
             shift_data = conn.execute(
                 f"""SELECT
                 CASE
-                WHEN CAST(strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS INTEGER) BETWEEN 6 AND 17 THEN 'day'
+                WHEN CAST(strftime('%H', datetime(s.start_ts, '+5 hours', '+30 minutes')) AS INTEGER) BETWEEN 9 AND 20 THEN 'day'
                 ELSE 'night'
                 END AS shift,
                 COUNT(*) AS total_segments,
@@ -1399,7 +1403,7 @@ class Database:
                 return {
                     "series": series,
                     "categories": categories,
-                    "shift_markers": [6, 18],
+                    "shift_markers": [9, 21],
                 }
 
             else:

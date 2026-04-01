@@ -314,7 +314,7 @@
     html += '<thead><tr>';
     html += '<th style="padding:0;height:22px;text-align:left;font-size:9px;color:rgba(148,163,184,0.5);text-transform:uppercase;letter-spacing:0.5px;font-weight:400">Camera</th>';
     for (let h = 0; h < 24; h++) {
-      const isEdge = h === 6 || h === 18;
+      const isEdge = h === 9 || h === 21;
       const bg = isEdge ? 'background:rgba(245,158,11,0.15)' : '';
       html += `<th style="padding:0;height:22px;text-align:center;font-size:9px;font-weight:400;color:${isEdge ? '#F59E0B' : 'rgba(148,163,184,0.4)'};${bg}">${String(h).padStart(2,'0')}</th>`;
     }
@@ -327,7 +327,7 @@
       html += `<td style="padding:0;padding-right:4px;vertical-align:top;font-size:10px;color:rgba(148,163,184,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${cam.label} (${cam.group})">${cam.label}</td>`;
       for (let h = 0; h < 24; h++) {
         const segments = cam.hours[h] || [];
-        const isEdge = h === 6 || h === 18;
+        const isEdge = h === 9 || h === 21;
         const cellBg = isEdge ? 'rgba(245,158,11,0.08)' : (h % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent');
         const borderStyle = isEdge ? 'border-left:2px solid rgba(245,158,11,0.3)' : '';
 
@@ -354,9 +354,9 @@
     // Shift labels below
     html += `<div style="display:grid;grid-template-columns:${LABEL_W}px repeat(24,${COL_W}px);gap:0;margin-top:4px">`;
     html += '<div></div>';
-    html += '<div style="grid-column:span 6;text-align:center;font-size:8px;color:rgba(148,163,184,0.3);text-transform:uppercase;letter-spacing:1px">Night</div>';
-    html += '<div style="grid-column:span 12;text-align:center;font-size:8px;color:rgba(245,158,11,0.3);text-transform:uppercase;letter-spacing:1px">Day Shift (06:00-18:00)</div>';
-    html += '<div style="grid-column:span 6;text-align:center;font-size:8px;color:rgba(99,102,241,0.3);text-transform:uppercase;letter-spacing:1px">Night</div>';
+    html += '<div style="grid-column:span 9;text-align:center;font-size:8px;color:rgba(148,163,184,0.3);text-transform:uppercase;letter-spacing:1px">Night</div>';
+    html += '<div style="grid-column:span 12;text-align:center;font-size:8px;color:rgba(245,158,11,0.3);text-transform:uppercase;letter-spacing:1px">Day Shift (09:00-21:00)</div>';
+    html += '<div style="grid-column:span 3;text-align:center;font-size:8px;color:rgba(99,102,241,0.3);text-transform:uppercase;letter-spacing:1px">Night</div>';
     html += '</div>';
 
     container.innerHTML = html;
