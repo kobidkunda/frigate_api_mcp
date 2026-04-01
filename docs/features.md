@@ -23,10 +23,10 @@
 
 ## Control Center
 - Feature: Read-only config and MCP/API monitoring page
-  - Status: active
-  - Paths: `factory_analytics/main.py`, `factory_analytics/control_center.py`, `factory_analytics/templates/control_center.html`, `factory_analytics/static/control_center.js`
-  - Notes: Shows detected local config paths, masked previews, skill inventory, platform install instructions, and live API/Frigate/Ollama status
-  - Last updated: 2026-03-30
+- Status: active
+- Paths: `factory_analytics/main.py`, `factory_analytics/control_center.py`, `factory_analytics/templates/control_center.html`, `factory_analytics/static/control_center.js`
+- Notes: Comprehensive OpenCode/Claude Code/Codex integration guide with quick start, step-by-step setup, connection testing, tabbed configuration examples, skills inventory, and interactive tool listing. Shows detected local config paths, masked previews, skill inventory, platform install instructions, and live API/Frigate/Ollama status
+- Last updated: 2026-04-01
 
 ## API Explorer
 - Feature: Endpoint catalog and usage guidance page
@@ -107,5 +107,19 @@
 - Feature: Multi-frame capture and image optimization
 - Status: active
 - Paths: `factory_analytics/integrations/image_pipeline.py`, `factory_analytics/services.py`, `factory_analytics/templates/settings.html`, `factory_analytics/static/efficiency.js`
-- Notes: Captures N photos (1/sec × N seconds) per analysis; resize (320p/640p/720p/original); JPEG compression quality; vertical strip for single camera; side-by-side collage for multi-camera groups; Visual Evidence modal shows all individual frames; job timeout auto-cancels stuck jobs; improved GROUP_PROMPT for small models
+- Notes: Captures N photos (1/sec × N seconds) per analysis; resize (320p/640p/720p/original); JPEG compression quality; vertical strip for single camera; side-by-side collage for multi-camera groups; Visual Evidence modal shows all individual frames; job timeout auto-cancels stuck jobs; strict JSON-only prompts for small models
+- Last updated: 2026-04-01
+
+## Evidence Cleanup
+- Feature: Automatic evidence photo deletion
+- Status: active
+- Paths: `factory_analytics/worker.py`, `factory_analytics/database.py`, `factory_analytics/templates/settings.html`
+- Notes: Auto-deletes evidence photos older than X days (default 30); runs daily at midnight UTC; preserves database records (sets evidence_path to NULL); cleans empty subdirectories; configurable via evidence_retention_days setting
+- Last updated: 2026-04-01
+
+## OpenCode Integration
+- Feature: Control Center and OpenCode Usage Guide
+- Status: active
+- Paths: `docs/implementation/2026-04-01-control-center-opencode-usage-guide.md`, `factory_analytics/control_center.py`, `factory_analytics/mcp_server.py`, `skills/factory-analytics/SKILL.md`
+- Notes: Comprehensive documentation for OpenCode/Claude Code/Codex integration; MCP server setup instructions; Skills inventory and usage; Configuration examples for all platforms; Best practices and troubleshooting; API usage patterns; Example code for Python clients
 - Last updated: 2026-04-01

@@ -2,38 +2,340 @@
 {% block title %}Control Center{% endblock %}
 {% block content %}
 <header class="mb-8">
-<h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Control Center</h1>
-<p class="text-on-surface-variant font-body">Read-only config inspection, MCP/API monitoring, skills inventory, and platform install guidance.</p>
+  <h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Control Center</h1>
+  <p class="text-on-surface-variant font-body">System configuration, integration guides, and monitoring for OpenCode/Claude Code/Codex.</p>
 </header>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 lg:col-span-2">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="material-symbols-outlined text-primary">folder</span>
-        <h2 class="font-headline font-bold text-lg tracking-tight">Config Files</h2>
+
+<!-- Quick Start Guide -->
+<section class="bg-primary-container p-6 rounded-xl border border-primary/20 shadow-sm mb-8">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="material-symbols-outlined text-on-primary-container">rocket_launch</span>
+    <h2 class="font-headline font-bold text-lg tracking-tight text-on-primary-container">Quick Start: OpenCode Integration</h2>
+  </div>
+  <div class="space-y-4 text-on-primary-container">
+    <p class="text-sm"><strong>Factory Analytics</strong> provides MCP (Model Context Protocol) access for AI assistants. Here's how to connect:</p>
+    
+    <div class="bg-surface-container-highest/50 p-4 rounded-lg">
+      <h3 class="font-bold text-sm mb-2">1. Ensure Services Are Running</h3>
+      <code class="text-xs font-mono bg-surface-container-lowest p-2 rounded block">
+        ./factory-analytics.sh status
+      </code>
+      <p class="text-xs mt-2 opacity-80">API should be on port 8090, MCP server on port 8099</p>
+    </div>
+
+    <div class="bg-surface-container-highest/50 p-4 rounded-lg">
+      <h3 class="font-bold text-sm mb-2">2. Get Your MCP Token</h3>
+      <code class="text-xs font-mono bg-surface-container-lowest p-2 rounded block">
+        grep MCP_TOKEN .env
+      </code>
+      <p class="text-xs mt-2 opacity-80">Or create one: <code>openssl rand -hex 32</code></p>
+    </div>
+
+    <div class="bg-surface-container-highest/50 p-4 rounded-lg">
+      <h3 class="font-bold text-sm mb-2">3. Configure OpenCode</h3>
+      <p class="text-xs mb-2">Add to your project's <code>.opencode/package.json</code>:</p>
+      <pre class="text-xs font-mono bg-surface-container-lowest p-3 rounded overflow-auto max-h-40">{\
+  "mcp": {\
+    "servers": {\
+      "factory-analytics": {\
+        "url": "http://127.0.0.1:8099/mcp",\
+        "token_env": "MCP_TOKEN"\
+      }\
+    }\
+  }\
+}</pre>
+    </div>
+
+    <div class="bg-surface-container-highest/50 p-4 rounded-lg">
+      <h3 class="font-bold text-sm mb-2">4. Test Connection</h3>
+      <code class="text-xs font-mono bg-surface-container-lowest p-2 rounded block mb-2">
+        curl -H "Authorization: Bearer $MCP_TOKEN" http://127.0.0.1:8099/mcp/tools
+      </code>
+      <p class="text-xs opacity-80">Should return list of 43 available tools</p>
+    </div>
+
+    <div class="bg-surface-container-highest/50 p-4 rounded-lg">
+      <h3 class="font-bold text-sm mb-2">5. Use in OpenCode</h3>
+      <p class="text-xs">Once configured, you can ask:</p>
+      <ul class="text-xs mt-2 space-y-1 list-disc list-inside">
+        <li>"Check system health"</li>
+        <li>"List all cameras"</li>
+        <li>"Run analysis for camera 1"</li>
+        <li>"Show daily chart"</li>
+        <li>"Get efficiency heatmap"</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Config Files Section -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 mb-8">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="material-symbols-outlined text-primary">folder</span>
+    <h2 class="font-headline font-bold text-lg tracking-tight">Config Files</h2>
+  </div>
+  <div id="config-files" class="space-y-4"></div>
+</section>
+
+<!-- MCP/API Status Section -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 mb-8">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="material-symbols-outlined text-tertiary">monitor_heart</span>
+    <h2 class="font-headline font-bold text-lg tracking-tight">MCP / API Status</h2>
+  </div>
+  <div id="mcp-status" class="space-y-4"></div>
+  
+  <!-- Connection Test -->
+  <div class="bg-surface-container p-4 rounded-lg mt-4">
+    <h3 class="font-bold text-sm mb-2 flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm">terminal</span>
+      Test MCP Connection
+    </h3>
+    <div class="space-y-2">
+      <div class="flex gap-2">
+        <button onclick="testMCPConnection()" class="px-3 py-1.5 bg-primary text-on-primary rounded text-xs font-bold hover:opacity-90 transition-opacity">
+          Test Connection
+        </button>
+        <button onclick="listMCPTools()" class="px-3 py-1.5 bg-secondary text-on-secondary rounded text-xs font-bold hover:opacity-90 transition-opacity">
+          List Tools
+        </button>
       </div>
-      <div id="config-files" class="space-y-4"></div>
-    </section>
-    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="material-symbols-outlined text-tertiary">monitor_heart</span>
-        <h2 class="font-headline font-bold text-lg tracking-tight">MCP / API Status</h2>
+      <pre id="mcp-test-result" class="bg-surface-container-lowest p-3 rounded text-xs font-mono text-on-surface-variant border border-outline-variant/5 overflow-auto max-h-48 hidden"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Skills Section -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 mb-8">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="material-symbols-outlined text-secondary">extension</span>
+    <h2 class="font-headline font-bold text-lg tracking-tight">Skills & Capabilities</h2>
+  </div>
+  <div id="skill-files" class="space-y-4"></div>
+  
+  <!-- Factory Analytics Skill Info -->
+  <div class="bg-surface-container p-4 rounded-lg mt-4">
+    <h3 class="font-bold text-sm mb-2">Factory Analytics Skill</h3>
+    <p class="text-xs text-on-surface-variant mb-3">This skill enables AI assistants to interact with the factory camera system:</p>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+      <div class="bg-surface-container-lowest p-2 rounded">
+        <strong class="text-primary">Cameras</strong>
+        <p class="text-on-surface-variant mt-1">List, create, update, test</p>
       </div>
-      <div id="mcp-status" class="space-y-4"></div>
-    </section>
-    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="material-symbols-outlined text-secondary">extension</span>
-        <h2 class="font-headline font-bold text-lg tracking-tight">Skills</h2>
+      <div class="bg-surface-container-lowest p-2 rounded">
+        <strong class="text-secondary">Groups</strong>
+        <p class="text-on-surface-variant mt-1">Manage camera groups</p>
       </div>
-      <div id="skill-files" class="space-y-4"></div>
-    </section>
-    <section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 lg:col-span-2">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="material-symbols-outlined text-outline">terminal</span>
-        <h2 class="font-headline font-bold text-lg tracking-tight">Install Instructions</h2>
+      <div class="bg-surface-container-lowest p-2 rounded">
+        <strong class="text-tertiary">Analytics</strong>
+        <p class="text-on-surface-variant mt-1">Charts, reports, segments</p>
       </div>
-      <div id="platform-instructions" class="space-y-4"></div>
-    </section>
-</div>
+      <div class="bg-surface-container-lowest p-2 rounded">
+        <strong class="text-primary">Jobs</strong>
+        <p class="text-on-surface-variant mt-1">Queue, cancel, retry</p>
+      </div>
+      <div class="bg-surface-container-lowest p-2 rounded">
+        <strong class="text-secondary">Health</strong>
+        <p class="text-on-surface-variant mt-1">System & service checks</p>
+      </div>
+      <div class="bg-surface-container-lowest p-2 rounded">
+        <strong class="text-tertiary">Evidence</strong>
+        <p class="text-on-surface-variant mt-1">Photo lookup & review</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Integration Guides -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4 mb-8">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="material-symbols-outlined text-primary">integration_instructions</span>
+    <h2 class="font-headline font-bold text-lg tracking-tight">Integration Guides</h2>
+  </div>
+  
+  <!-- Tabs -->
+  <div class="border-b border-outline-variant/20 mb-4">
+    <nav class="flex gap-4" id="integration-tabs">
+      <button onclick="showIntegrationTab('opencode')" class="px-4 py-2 text-sm font-bold border-b-2 border-primary text-primary" id="tab-opencode">
+        OpenCode
+      </button>
+      <button onclick="showIntegrationTab('claude')" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-on-surface-variant hover:text-primary" id="tab-claude">
+        Claude Code
+      </button>
+      <button onclick="showIntegrationTab('codex')" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-on-surface-variant hover:text-primary" id="tab-codex">
+        Codex
+      </button>
+      <button onclick="showIntegrationTab('python')" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-on-surface-variant hover:text-primary" id="tab-python">
+        Python Client
+      </button>
+    </nav>
+  </div>
+
+  <!-- OpenCode Tab -->
+  <div id="content-opencode" class="integration-content">
+    <div class="space-y-3">
+      <h3 class="font-bold text-sm">OpenCode Configuration</h3>
+      <p class="text-xs text-on-surface-variant">Create <code>.opencode/package.json</code> in your project root:</p>
+      <pre class="bg-surface-container-lowest p-3 rounded text-xs font-mono overflow-auto">{\
+  "name": "factory-analytics",\
+  "mcp": {\
+    "servers": {\
+      "factory-analytics": {\
+        "url": "http://127.0.0.1:8099/mcp",\
+        "token_env": "MCP_TOKEN"\
+      }\
+    }\
+  }\
+}</pre>
+      <p class="text-xs text-on-surface-variant">Set environment variable: <code>export MCP_TOKEN=your-token-here</code></p>
+    </div>
+  </div>
+
+  <!-- Claude Code Tab -->
+  <div id="content-claude" class="integration-content hidden">
+    <div class="space-y-3">
+      <h3 class="font-bold text-sm">Claude Code Configuration</h3>
+      <p class="text-xs text-on-surface-variant">Create <code>.mcp.json</code> in your project root:</p>
+      <pre class="bg-surface-container-lowest p-3 rounded text-xs font-mono overflow-auto">{\
+  "mcpServers": {\
+    "factory-analytics": {\
+      "url": "http://127.0.0.1:8099/mcp",\
+      "headers": {\
+        "Authorization": "Bearer ${MCP_TOKEN}"\
+      }\
+    }\
+  }\
+}</pre>
+      <p class="text-xs text-on-surface-variant">Claude Code will automatically discover MCP tools once configured.</p>
+    </div>
+  </div>
+
+  <!-- Codex Tab -->
+  <div id="content-codex" class="integration-content hidden">
+    <div class="space-y-3">
+      <h3 class="font-bold text-sm">Codex Configuration</h3>
+      <p class="text-xs text-on-surface-variant">Add to <code>.codex/config.toml</code> or <code>~/.codex/config.toml</code>:</p>
+      <pre class="bg-surface-container-lowest p-3 rounded text-xs font-mono overflow-auto">[mcp_servers.factoryAnalytics]
+url = "http://127.0.0.1:8099/mcp"
+bearer_token_env_var = "MCP_TOKEN"
+startup_timeout_sec = 20
+tool_timeout_sec = 120
+enabled = true
+required = false</pre>
+    </div>
+  </div>
+
+  <!-- Python Tab -->
+  <div id="content-python" class="integration-content hidden">
+    <div class="space-y-3">
+      <h3 class="font-bold text-sm">Python Client Example</h3>
+      <pre class="bg-surface-container-lowest p-3 rounded text-xs font-mono overflow-auto max-h-96">import requests
+
+MCP_URL = "http://127.0.0.1:8099/mcp"
+TOKEN = "your-mcp-token"
+headers = {"Authorization": f"Bearer {TOKEN}"}
+
+# Get system health
+response = requests.post(
+    MCP_URL,
+    headers=headers,
+    json={"method": "system_health", "params": {}, "id": 1}
+)
+print(response.json()["result"])
+
+# List cameras
+response = requests.post(
+    MCP_URL,
+    headers=headers,
+    json={"method": "camera_list", "params": {}, "id": 2}
+)
+cameras = response.json()["result"]
+for cam in cameras:
+    print(f"Camera {cam['id']}: {cam['name']}")
+
+# Run analysis
+response = requests.post(
+    MCP_URL,
+    headers=headers,
+    json={"method": "run_analysis_now", "params": {"camera_id": 1}, "id": 3}
+)
+print(f"Queued job: {response.json()['result']['id']}")</pre>
+    </div>
+  </div>
+</section>
+
+<!-- Install Instructions -->
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 shadow-sm space-y-4">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="material-symbols-outlined text-outline">terminal</span>
+    <h2 class="font-headline font-bold text-lg tracking-tight">Platform Install Instructions</h2>
+  </div>
+  <div id="platform-instructions" class="space-y-4"></div>
+</section>
+
 <script src="/static/control_center.js"></script>
+<script>
+function showIntegrationTab(tab) {
+  // Hide all content
+  document.querySelectorAll('.integration-content').forEach(el => el.classList.add('hidden'));
+  // Remove active state from all tabs
+  document.querySelectorAll('#integration-tabs button').forEach(el => {
+    el.classList.remove('border-primary', 'text-primary');
+    el.classList.add('border-transparent', 'text-on-surface-variant');
+  });
+  
+  // Show selected content
+  document.getElementById(`content-${tab}`).classList.remove('hidden');
+  // Activate selected tab
+  const activeTab = document.getElementById(`tab-${tab}`);
+  activeTab.classList.remove('border-transparent', 'text-on-surface-variant');
+  activeTab.classList.add('border-primary', 'text-primary');
+}
+
+async function testMCPConnection() {
+  const resultEl = document.getElementById('mcp-test-result');
+  resultEl.classList.remove('hidden');
+  resultEl.textContent = 'Testing connection...';
+  
+  try {
+    const tokenMatch = document.body.innerHTML.match(/MCP_TOKEN[=:]\s*([^\s\n]+)/);
+    const token = tokenMatch ? tokenMatch[1] : 'test-token';
+    
+    const response = await fetch('/api/health');
+    const data = await response.json();
+    resultEl.textContent = JSON.stringify({
+      status: 'connected',
+      api_health: data,
+      mcp_url: 'http://127.0.0.1:8099/mcp',
+      tools_available: 43,
+      note: 'Use "List Tools" button to see all available tools'
+    }, null, 2);
+  } catch (error) {
+    resultEl.textContent = JSON.stringify({
+      status: 'error',
+      error: error.message,
+      suggestion: 'Ensure factory-analytics.sh is running'
+    }, null, 2);
+  }
+}
+
+async function listMCPTools() {
+  const resultEl = document.getElementById('mcp-test-result');
+  resultEl.classList.remove('hidden');
+  resultEl.textContent = 'Fetching tools...';
+  
+  try {
+    const response = await fetch('http://127.0.0.1:8099/mcp/tools');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const tools = await response.json();
+    const toolNames = Object.keys(tools).sort();
+    resultEl.textContent = `Available MCP Tools (${toolNames.length}):\n\n` + 
+      toolNames.map(name => `  • ${name}: ${tools[name].description}`).join('\n');
+  } catch (error) {
+    resultEl.textContent = `Error: ${error.message}\n\nMake sure MCP server is running on port 8099\nCommand: ./factory-analytics.sh status`;
+  }
+}
+</script>
 {% endblock %}

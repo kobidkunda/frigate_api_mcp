@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 
+from factory_analytics.config import DATA_ROOT
 from factory_analytics.database import Database
 from factory_analytics.logging_setup import setup_logging
 from factory_analytics.services import AnalyticsService
@@ -16,6 +19,7 @@ class WorkerLoop:
         self.service = AnalyticsService(db)
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
+        self._last_cleanup_day: str | None = None
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -39,7 +43,6 @@ class WorkerLoop:
             try:
                 settings = self.db.get_settings()
 
-                # Auto-expire running jobs that exceeded timeout
                 timeout = int(settings.get("job_timeout_seconds", 600))
                 expired = self.db.expire_timed_out_jobs(timeout)
                 if expired:
@@ -47,13 +50,14 @@ class WorkerLoop:
                         "Expired %d timed-out job(s) (timeout=%ds)", expired, timeout
                     )
 
+                self._cleanup_old_evidence(settings)
+
                 self._schedule_due_groups()
                 self._schedule_due_cameras()
                 processed = self.service.process_one_pending_job()
                 if processed:
                     logger.info("Processed job %s", processed.get("job", {}).get("id"))
 
-                # Reset error count on successful iteration
                 error_count = 0
 
             except Exception as e:
@@ -63,16 +67,68 @@ class WorkerLoop:
                     exc_info=True,
                 )
 
-                # If too many consecutive errors, log warning but continue
                 if error_count >= max_errors:
                     logger.warning(
                         f"Worker loop has {error_count} consecutive errors, but continuing..."
                     )
-                    error_count = max_errors - 1  # Prevent overflow
-
-                # CRITICAL: Continue loop despite errors
+                    error_count = max_errors - 1
 
             self.stop_event.wait(5)
+
+    def _cleanup_old_evidence(self, settings: dict):
+        """Delete evidence files older than retention_days.
+
+        Runs once per day at midnight UTC. Deletes files but keeps DB records.
+        """
+        retention_days = int(settings.get("evidence_retention_days", 30))
+        if retention_days <= 0:
+            return
+
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if self._last_cleanup_day == today:
+            return
+
+        self._last_cleanup_day = today
+
+        paths = self.db.get_expired_evidence_paths(retention_days)
+        if not paths:
+            logger.debug("No expired evidence to clean up")
+            return
+
+        deleted_count = 0
+        for rel_path in paths:
+            try:
+                full_path = DATA_ROOT.parent / rel_path
+                if full_path.exists():
+                    full_path.unlink()
+                    deleted_count += 1
+            except Exception as e:
+                logger.warning("Failed to delete %s: %s", rel_path, e)
+
+        updated = self.db.clear_segment_evidence_refs(retention_days)
+
+        logger.info(
+            "Cleaned up %d evidence files older than %d days, cleared %d DB refs",
+            deleted_count,
+            retention_days,
+            updated,
+        )
+
+        self._cleanup_empty_dirs()
+
+    def _cleanup_empty_dirs(self):
+        """Remove empty evidence subdirectories."""
+        evidence_dir = DATA_ROOT / "evidence"
+        if not evidence_dir.exists():
+            return
+
+        for subdir in evidence_dir.rglob("*"):
+            if subdir.is_dir() and not any(subdir.iterdir()):
+                try:
+                    subdir.rmdir()
+                    logger.debug("Removed empty directory: %s", subdir)
+                except Exception:
+                    pass
 
     def _schedule_due_groups(self):
         settings = self.db.get_settings()

@@ -22,6 +22,18 @@
 ## Blocked
 
 ## Done
+- [x] Redesign Control Center page with comprehensive OpenCode usage guide
+- Done: 2026-04-01
+- Related: factory_analytics/templates/control_center.html
+- Features: Quick start guide, step-by-step integration, connection testing, tabbed guides for OpenCode/Claude/Codex/Python, interactive tool listing
+- [x] Add evidence photo auto-delete setting
+- Done: 2026-04-01
+- Related: docs/implementation/2026-04-01-evidence-auto-delete-setting.md
+- Features: evidence_retention_days setting (default 30), daily cleanup in worker, DB refs cleared but records preserved
+- [x] Create comprehensive OpenCode usage guide for Control Center
+- Done: 2026-04-01
+- Related: docs/implementation/2026-04-01-control-center-opencode-usage-guide.md
+- Content: MCP setup, skills inventory, integration examples, best practices, troubleshooting
 - [x] Create MAINTENANCE.md manual for SysAdmins/DevOps
 - Done: 2026-04-01
 - Related: docs/MAINTENANCE.md

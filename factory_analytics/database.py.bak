@@ -49,7 +49,6 @@ DEFAULT_SETTINGS = {
     "image_compression_quality": 100,
     # NEW: Job timeout
     "job_timeout_seconds": 600,
-    "evidence_retention_days": 30,
 }
 
 
@@ -1572,48 +1571,3 @@ class Database:
                 "failed": row["failed"] or 0,
                 "cancelled": row["cancelled"] or 0,
             }
-
-
-    def get_expired_evidence_paths(self, retention_days: int) -> list[str]:
-        """Get evidence paths for segments older than retention_days.
-
-        Returns list of evidence_path values that should be cleaned up.
-        Does NOT delete from DB - only returns paths for file cleanup.
-        """
-        cutoff = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ) - __import__("datetime").timedelta(days=retention_days)
-        cutoff_str = cutoff.isoformat()
-
-        with self.connect() as conn:
-            rows = conn.execute(
-                """SELECT DISTINCT evidence_path
-                FROM segments
-                WHERE evidence_path IS NOT NULL
-                AND evidence_path != ''
-                AND created_at < ?""",
-                (cutoff_str,),
-            ).fetchall()
-            return [row["evidence_path"] for row in rows]
-
-    def clear_segment_evidence_refs(self, retention_days: int) -> int:
-        """Clear evidence_path references for old segments.
-
-        Sets evidence_path to NULL for segments older than retention_days.
-        Returns count of updated rows.
-        """
-        cutoff = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ) - __import__("datetime").timedelta(days=retention_days)
-        cutoff_str = cutoff.isoformat()
-
-        with self.connect() as conn:
-            cur = conn.execute(
-                """UPDATE segments
-                SET evidence_path = NULL
-                WHERE evidence_path IS NOT NULL
-                AND evidence_path != ''
-                AND created_at < ?""",
-                (cutoff_str,),
-            )
-            return cur.rowcount
