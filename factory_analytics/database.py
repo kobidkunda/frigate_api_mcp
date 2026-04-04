@@ -18,6 +18,14 @@ from factory_analytics.config import (
     SCHEDULER_ENABLED,
     PUBLIC_BASE_URL,
 )
+
+# Reusable SQL snippet for extracting the model used from a job (alias j).
+MODEL_USED_SQL = (
+    "COALESCE(json_extract(j.raw_result, '$.raw.model'),"
+    " json_extract(j.raw_result, '$.model'),"
+    " json_extract(j.payload_json, '$.model'),"
+    " json_extract(j.payload_json, '$.llm_vision_model')) AS model_used"
+)
 from factory_analytics.logging_setup import setup_logging
 
 logger = setup_logging()
@@ -607,7 +615,7 @@ class Database:
             ).fetchone()[0]
             rows = conn.execute(
                 f"""SELECT j.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
-                          COALESCE(json_extract(j.raw_result, '$.raw.model'), json_extract(j.raw_result, '$.model'), json_extract(j.payload_json, '$.model'), json_extract(j.payload_json, '$.llm_vision_model')) AS model_used
+                          {MODEL_USED_SQL}
                    FROM jobs j JOIN cameras c ON c.id = j.camera_id{where}
                    ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?""",
                 (*params, page_size, offset),
@@ -782,12 +790,7 @@ class Database:
             rows = conn.execute(
                 f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
                           j.job_type, j.raw_result, j.payload_json,
-                          COALESCE(
-                              json_extract(j.raw_result, '$.raw.model'),
-                              json_extract(j.raw_result, '$.model'),
-                              json_extract(j.payload_json, '$.model'),
-                              json_extract(j.payload_json, '$.llm_vision_model')
-                          ) AS model_used
+                          {MODEL_USED_SQL}
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
                    LEFT JOIN jobs j ON j.id = s.job_id{where}
@@ -1095,13 +1098,8 @@ class Database:
                 (day,),
             ).fetchall()
             segments = conn.execute(
-                """SELECT s.*, c.name AS camera_name,
-                          COALESCE(
-                              json_extract(j.raw_result, '$.raw.model'),
-                              json_extract(j.raw_result, '$.model'),
-                              json_extract(j.payload_json, '$.model'),
-                              json_extract(j.payload_json, '$.llm_vision_model')
-                          ) AS model_used
+                f"""SELECT s.*, c.name AS camera_name,
+                          {MODEL_USED_SQL}
                    FROM segments s
                    JOIN cameras c ON c.id=s.camera_id
                    LEFT JOIN jobs j ON j.id = s.job_id
