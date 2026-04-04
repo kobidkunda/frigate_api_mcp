@@ -11,101 +11,77 @@ from factory_analytics.logging_setup import setup_logging
 logger = setup_logging()
 
 SINGLE_CAMERA_PROMPT = (
-    "You are a strict factory CCTV vision auditor. Analyze the provided images conservatively and only report what is directly visible. "
-    "These frames were captured {seconds}s apart from the same camera.\n"
-    "CRITICAL RULES:\n"
-    "1. NEVER assume a person is present unless a human head, torso, limbs, or clear body shape is actually visible.\n"
-    "2. NEVER mark 'sleeping' unless a clearly visible person is seen in a sleep-like posture.\n"
-    "3. Machine activity does NOT imply human presence.\n"
-    "4. Bags, cloth, sacks, chairs, shadows, machine parts, reflections, and colored objects must NOT be treated as people.\n"
-    "5. If no person is clearly visible, output: person_present=false, person_count=0, sleeping=false, idle=false, worker_state='no_person_visible'\n"
-    "6. If visibility is poor or evidence is weak, use 'unknown' instead of guessing.\n"
-    "7. Be conservative. False positives are worse than false negatives.\n\n"
-    "Common false positives in this factory: cloth bundles, sacks, chairs, machine handles, colored plastic rolls, shadows, reflections, stacked material. "
-    "These must NOT be classified as people.\n\n"
+    "You are a strict factory work-state auditor. Analyze the provided images conservatively and only report what is directly visible. "
+    "These images are sequential frames from the SAME camera and SAME place. "
+    "Each frame is approximately {seconds}s apart.\n"
+    "Rules:\n"
+    "1. Only use directly visible evidence.\n"
+    "2. Do not infer a worker from machine motion, shadows, cloth, sacks, chairs, reflections, or hidden areas.\n"
+    "3. If a person is clearly visible and actively engaged in productive physical work, use 'working'.\n"
+    "4. If a person is visible but inactive or not productively engaged, use 'not_working'.\n"
+    "5. If no person is clearly visible across the sequence, use 'no_person'.\n"
+    "6. If evidence is weak, blocked, blurred, or ambiguous, use 'uncertain'.\n"
+    "Optional: include an 'observations' array like [{\"frame_index\":0,\"label\":\"working|not_working|no_person|uncertain\",\"notes\":\"optional short note\"}] when useful. "
     "Return STRICT JSON ONLY with these exact keys:\n"
-    '{"label": "working|idle|sleeping|uncertain|stopped|sleep-suspect|timepass|operator_missing", "confidence": 0.0, "notes": "brief explanation", "boxes": []}\n'
-    "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
-    "If no person visible in any frame, use label='operator_missing'. "
-    "Confidence must be a number from 0 to 1. "
-    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1. "
-    "DO NOT include any text before or after the JSON. Return ONLY valid JSON."
+    '{"label":"working|not_working|no_person|uncertain","confidence":0.0,"notes":"short reason"}'
 )
 
 GROUP_PROMPT = (
-    "You are a strict factory CCTV vision auditor. Analyze the provided images conservatively and only report what is directly visible. "
-    "Each image shows ALL cameras merged together for one moment in time. "
-    "These {count} frames were captured {seconds}s apart.\n"
-    "The labeled areas in each image show camera names for each section.\n"
-    "CRITICAL RULES:\n"
-    "1. NEVER assume a person is present unless a human head, torso, limbs, or clear body shape is actually visible.\n"
-    "2. NEVER mark 'sleeping' unless a clearly visible person is seen in a sleep-like posture.\n"
-    "3. Machine activity does NOT imply human presence.\n"
-    "4. Bags, cloth, sacks, chairs, shadows, machine parts, reflections, and colored objects must NOT be treated as people.\n"
-    "5. If no person is clearly visible, output: person_present=false, person_count=0, sleeping=false, idle=false, worker_state='no_person_visible'\n"
-    "6. If visibility is poor or evidence is weak, use 'unknown' instead of guessing.\n"
-    "7. Be conservative. False positives are worse than false negatives.\n\n"
-    "Common false positives in this factory: cloth bundles, sacks, chairs, machine handles, colored plastic rolls, shadows, reflections, stacked material. "
-    "These must NOT be classified as people.\n\n"
+    "You are a strict factory work-state auditor. Analyze the provided images conservatively and only report what is directly visible. "
+    "Each image is a merged collage for one second in time, and each collage contains multiple labeled camera views. "
+    "These collages are sequential and approximately {seconds}s apart.\n"
+    "Rules:\n"
+    "1. Only use directly visible evidence.\n"
+    "2. If any camera clearly shows productive work in any collage, the correct final label is 'working'.\n"
+    "3. If people are visible but not productively engaged, use 'not_working'.\n"
+    "4. If no person is clearly visible across all collages, use 'no_person'.\n"
+    "5. If evidence is weak or ambiguous, use 'uncertain'.\n"
+    "Optional: include an 'observations' array like [{\"frame_index\":0,\"label\":\"working|not_working|no_person|uncertain\",\"notes\":\"optional short note\"}] when useful. "
     "Return STRICT JSON ONLY with these exact keys:\n"
-    '{"label": "working|idle|sleeping|uncertain|stopped|sleep-suspect|timepass|operator_missing", "confidence": 0.0, "notes": "brief explanation", "boxes": []}\n'
-    "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
-    "If no person visible in any camera view across all frames, use label='operator_missing'. "
-    "Confidence must be a number from 0 to 1. "
-    "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1. "
-    "DO NOT include any text before or after the JSON. Return ONLY valid JSON."
+    '{"label":"working|not_working|no_person|uncertain","confidence":0.0,"notes":"short reason"}'
 )
 
-VALID_LABELS = {
-    "working",
-    "idle",
-    "sleeping",
-    "uncertain",
-    "stopped",
-    "sleep-suspect",
-    "timepass",
-    "operator_missing",
-}
+VALID_LABELS = {"working", "not_working", "no_person", "uncertain"}
 
 
 def normalize_label(raw_label: str) -> str | None:
     label = (raw_label or "").strip().lower().replace("-", " ")
-    if label in VALID_LABELS:
-        return label
     aliases = {
-        "sleep suspect": "sleep-suspect",
-        "sleeping suspect": "sleep-suspect",
-        "time pass": "timepass",
-        "timepassing": "timepass",
-        "operator missing": "operator_missing",
-        "missing operator": "operator_missing",
-        "no operator": "operator_missing",
-        "worker missing": "operator_missing",
-        "missing worker": "operator_missing",
-        "no worker": "operator_missing",
-        "no person": "operator_missing",
-        "not working": "idle",
-        "doing no work": "idle",
-        "stopped vehicle": "stopped",
-        "vehicle stopped": "stopped",
-        "stopped machine": "stopped",
-        "machine stopped": "stopped",
+        "working": "working",
+        "active": "working",
+        "productive": "working",
+        "not working": "not_working",
+        "not_working": "not_working",
+        "doing no work": "not_working",
+        "idle": "not_working",
+        "inactive": "not_working",
+        "time pass": "not_working",
+        "timepass": "not_working",
+        "stopped": "not_working",
+        "stopped vehicle": "not_working",
+        "vehicle stopped": "not_working",
+        "stopped machine": "not_working",
+        "machine stopped": "not_working",
+        "sleeping": "not_working",
+        "sleep suspect": "not_working",
+        "sleeping suspect": "not_working",
+        "operator missing": "no_person",
+        "operator_missing": "no_person",
+        "missing operator": "no_person",
+        "no operator": "no_person",
+        "worker missing": "no_person",
+        "missing worker": "no_person",
+        "no worker": "no_person",
+        "no person": "no_person",
+        "no_person": "no_person",
+        "no people": "no_person",
+        "no human": "no_person",
+        "uncertain": "uncertain",
+        "unknown": "uncertain",
         "no extended analysis available": "uncertain",
         "no analysis available": "uncertain",
-        "no people": "operator_missing",
-        "no human": "operator_missing",
     }
-    if label in aliases:
-        return aliases[label]
-    if "sleep" in label and "suspect" in label:
-        return "sleep-suspect"
-    if "time" in label and "pass" in label:
-        return "timepass"
-    if "operator" in label and ("missing" in label or "absent" in label):
-        return "operator_missing"
-    if label.startswith("stopped"):
-        return "stopped"
-    return None
+    return aliases.get(label)
 
 
 class OpenAIClient:
@@ -148,112 +124,73 @@ class OpenAIClient:
         self, content: str, *, group_mode: bool
     ) -> dict[str, Any]:
         text = content.strip()
-        # Extract JSON from mixed response (model may include reasoning text)
         if not text.startswith("{"):
             start = text.find("{")
             end = text.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                text = text[start : end + 1]
-            else:
+            if start == -1 or end == -1 or end <= start:
                 raise RuntimeError(
                     f"Model {self.model} did not return JSON: {content[:300]}"
                 )
+            text = text[start : end + 1]
         try:
             parsed = json.loads(text)
-            if group_mode and (
-                parsed.get("type") == "text/html"
-                or "<html" in str(parsed.get("data", "")).lower()
-                or "<div" in str(parsed.get("data", "")).lower()
-                or "productivity tools" in str(parsed.get("data", "")).lower()
-            ):
-                raise RuntimeError(
-                    f"Model {self.model} returned non-factory html garbage for group analysis"
-                )
-            if group_mode and "label" not in parsed:
-                raise RuntimeError(
-                    f"Model {self.model} returned malformed group payload without label"
-                )
-            raw_label = parsed.get("label", "uncertain")
-            label = normalize_label(raw_label)
-            confidence = parsed.get("confidence", 0.0)
-            if label not in VALID_LABELS:
-                raise RuntimeError(
-                    f"Model {self.model} returned invalid label: {raw_label}"
-                )
-            try:
-                confidence = float(confidence)
-            except (TypeError, ValueError):
-                raise RuntimeError(
-                    f"Model {self.model} returned invalid confidence: {confidence}"
-                )
-            if not (0.0 <= confidence <= 1.0):
-                raise RuntimeError(
-                    f"Model {self.model} returned confidence out of range: {confidence}"
-                )
-            boxes = parsed.get("boxes")
-            if not isinstance(boxes, list):
-                logger.warning(
-                    "Model %s returned non-list boxes (%s), defaulting to []",
-                    self.model,
-                    type(boxes).__name__,
-                )
-                boxes = []
-            for item in boxes:
-                if not isinstance(item, dict):
-                    logger.warning(
-                        "Model %s returned non-object box entry, skipping", self.model
-                    )
-                    continue
-                if item.get("label") != "person":
-                    logger.warning(
-                        "Model %s returned non-person box label: %s, skipping",
-                        self.model,
-                        item.get("label"),
-                    )
-                    continue
-                box = item.get("box")
-                if not isinstance(box, list) or len(box) < 4:
-                    logger.warning(
-                        "Model %s returned invalid box coordinates, skipping",
-                        self.model,
-                    )
-                    continue
-                clean_box = []
-                skip_box = False
-                for value in box[:4]:
-                    try:
-                        num = float(value)
-                    except (TypeError, ValueError):
-                        logger.warning(
-                            "Model %s returned non-numeric box coordinate: %s, skipping",
-                            self.model,
-                            value,
-                        )
-                        skip_box = True
-                        break
-                    clean_box.append(num)
-                if skip_box:
-                    continue
-                if any(v > 1.0 for v in clean_box):
-                    max_val = max(clean_box)
-                    if max_val > 0:
-                        clean_box = [v / max_val for v in clean_box]
-                        logger.info(
-                            "Normalized box coordinates from pixel values (max=%.1f)",
-                            max_val,
-                        )
-                clean_box = [max(0.0, min(1.0, v)) for v in clean_box]
-                item["box"] = clean_box
-            return {
-                "label": label,
-                "confidence": confidence,
-                "notes": parsed.get("notes", ""),
-                "boxes": boxes,
-            }
         except json.JSONDecodeError as exc:
             raise RuntimeError(
                 f"Model {self.model} did not return JSON: {content[:300]}"
             ) from exc
+        if group_mode and (
+            parsed.get("type") == "text/html"
+            or "<html" in str(parsed.get("data", "")).lower()
+            or "<div" in str(parsed.get("data", "")).lower()
+            or "productivity tools" in str(parsed.get("data", "")).lower()
+        ):
+            raise RuntimeError(
+                f"Model {self.model} returned non-factory html garbage for group analysis"
+            )
+        if "label" not in parsed:
+            raise RuntimeError(
+                f"Model {self.model} returned malformed payload without label"
+            )
+        raw_label = parsed.get("label", "uncertain")
+        label = normalize_label(raw_label)
+        if label not in VALID_LABELS:
+            raise RuntimeError(f"Model {self.model} returned invalid label: {raw_label}")
+        try:
+            confidence = float(parsed.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            raise RuntimeError(
+                f"Model {self.model} returned invalid confidence: {parsed.get('confidence')}"
+            )
+        if not (0.0 <= confidence <= 1.0):
+            raise RuntimeError(
+                f"Model {self.model} returned confidence out of range: {confidence}"
+            )
+        observations = []
+        for item in parsed.get("observations", []):
+            if not isinstance(item, dict):
+                continue
+            normalized = normalize_label(str(item.get("label", "")))
+            if normalized not in VALID_LABELS:
+                continue
+            try:
+                frame_index = int(item.get("frame_index", 0))
+            except (TypeError, ValueError):
+                continue
+            observations.append(
+                {
+                    "frame_index": frame_index,
+                    "label": normalized,
+                    "notes": str(item.get("notes", "") or ""),
+                }
+            )
+        result = {
+            "label": label,
+            "confidence": confidence,
+            "notes": parsed.get("notes", ""),
+        }
+        if observations:
+            result["observations"] = observations
+        return result
 
     def _send_request(self, prompt: str, image_paths: list[Path]) -> tuple[str, Any]:
         if not self.enabled:
@@ -303,12 +240,9 @@ class OpenAIClient:
     ) -> dict[str, Any]:
         if not image_paths:
             raise RuntimeError("No images provided for classification")
-        if len(image_paths) == 1:
-            effective_prompt = prompt or SINGLE_CAMERA_PROMPT
-        else:
-            effective_prompt = (prompt or SINGLE_CAMERA_PROMPT).replace(
-                "{seconds}", str(seconds_apart)
-            )
+        effective_prompt = (prompt or SINGLE_CAMERA_PROMPT).replace(
+            "{seconds}", str(seconds_apart)
+        )
         content, data = self._send_request(effective_prompt, image_paths)
         result = self._parse_classification_content(content, group_mode=False)
         result["raw"] = data

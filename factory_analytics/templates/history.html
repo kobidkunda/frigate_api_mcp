@@ -20,9 +20,8 @@
             <select name="label" class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm appearance-none cursor-pointer">
                 <option value="">All Classifications</option>
                 <option value="working">Working</option>
-                <option value="idle">Idle</option>
-                <option value="sleeping">Sleeping</option>
-                <option value="stopped">Stopped</option>
+                <option value="not_working">Not Working</option>
+                <option value="no_person">No Person</option>
                 <option value="uncertain">Uncertain</option>
             </select>
         </div>
@@ -157,9 +156,8 @@
     function getLabelColor(label) {
         const colors = {
             'working': 'bg-tertiary',
-            'sleeping': 'bg-secondary',
-            'idle': 'bg-outline',
-            'stopped': 'bg-error',
+            'not_working': 'bg-outline',
+            'no_person': 'bg-secondary',
             'uncertain': 'bg-tertiary-fixed-dim'
         };
         return colors[label] || 'bg-outline';
@@ -181,20 +179,23 @@
         setStateEmpty(false);
         
         const html = segments.map(s => {
-            const labelColor = getLabelColor(s.label);
+            const effectiveLabel = s.reviewed_label || s.label;
+            const labelColor = getLabelColor(effectiveLabel);
             const confidenceClass = (s.confidence || 0) > 0.8 ? 'text-tertiary' : 'text-secondary';
             
             let evidenceHtml = '<div class="w-32 h-20 rounded-md bg-surface-container-highest border border-outline-variant/10 flex items-center justify-center"><span class="text-[10px] text-outline font-label uppercase">No Feed</span></div>';
-            if (s.evidence_path) {
-                const paths = s.evidence_path.split(';').filter(Boolean);
-                if (paths.length === 1) {
-                    evidenceHtml = `<a href="/${paths[0]}" target="_blank" class="block w-32 h-20 rounded-md overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors"><img src="/${paths[0]}" alt="${s.label}" class="w-full h-full object-cover" loading="lazy"></a>`;
-                } else {
-                    const thumbs = paths.map((p, i) => 
-                        `<a href="/${p}" target="_blank" class="w-10 h-10 rounded overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors flex-shrink-0"><img src="/${p}" alt="frame ${i+1}" class="w-full h-full object-cover" loading="lazy"></a>`
-                    ).join('');
-                    evidenceHtml = `<div class="flex gap-1 items-center">${thumbs}</div>`;
-                }
+            const evidenceFrames = Array.isArray(s.evidence_frames)
+                ? s.evidence_frames.filter(Boolean)
+                : Array.isArray(s.raw_result?.evidence_frames)
+                    ? s.raw_result.evidence_frames.filter(Boolean)
+                    : [s.evidence_path].filter(Boolean);
+            if (evidenceFrames.length === 1) {
+                evidenceHtml = `<a href="/${evidenceFrames[0]}" target="_blank" class="block w-32 h-20 rounded-md overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors"><img src="/${evidenceFrames[0]}" alt="${effectiveLabel}" class="w-full h-full object-cover" loading="lazy"></a>`;
+            } else if (evidenceFrames.length > 1) {
+                const thumbs = evidenceFrames.map((p, i) =>
+                    `<a href="/${p}" target="_blank" class="w-10 h-10 rounded overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors flex-shrink-0"><img src="/${p}" alt="frame ${i+1}" class="w-full h-full object-cover" loading="lazy"></a>`
+                ).join('');
+                evidenceHtml = `<div class="flex gap-1 items-center">${thumbs}</div>`;
             }
 
             let groupHtml = '';
@@ -210,7 +211,7 @@
                 <td class="px-6 py-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="w-2 h-2 rounded-full ${labelColor}"></span>
-                        <span class="text-sm font-bold text-on-surface capitalize">${s.reviewed_label || s.label}</span>
+                        <span class="text-sm font-bold text-on-surface capitalize">${effectiveLabel}</span>
                     </div>
                     <div class="text-xs text-on-surface-variant max-w-xs leading-relaxed line-clamp-2">
                         ${s.notes || 'No extended analysis available.'}
@@ -233,8 +234,8 @@
                 <td class="px-6 py-6 text-right">
                     <div class="flex items-center justify-end gap-1">
                         <button onclick="window.reviewSegment(${s.id}, 'working')" class="w-8 h-8 rounded bg-surface-container-highest hover:bg-tertiary hover:text-on-tertiary transition-colors flex items-center justify-center text-[10px] font-bold" title="Mark Working">W</button>
-                        <button onclick="window.reviewSegment(${s.id}, 'idle')" class="w-8 h-8 rounded bg-surface-container-highest hover:bg-outline hover:text-surface transition-colors flex items-center justify-center text-[10px] font-bold" title="Mark Idle">I</button>
-                        <button onclick="window.reviewSegment(${s.id}, 'sleeping')" class="w-8 h-8 rounded bg-surface-container-highest hover:bg-secondary hover:text-on-secondary transition-colors flex items-center justify-center text-[10px] font-bold" title="Mark Sleeping">S</button>
+                        <button onclick="window.reviewSegment(${s.id}, 'not_working')" class="w-8 h-8 rounded bg-surface-container-highest hover:bg-outline hover:text-surface transition-colors flex items-center justify-center text-[10px] font-bold" title="Mark Not Working">N</button>
+                        <button onclick="window.reviewSegment(${s.id}, 'no_person')" class="w-8 h-8 rounded bg-surface-container-highest hover:bg-secondary hover:text-on-secondary transition-colors flex items-center justify-center text-[10px] font-bold" title="Mark No Person">P</button>
                     </div>
                 </td>
             </tr>`;
@@ -350,21 +351,10 @@
         }
     }
 
-    // Initialize on window load (more reliable than DOMContentLoaded)
-    window.addEventListener('load', function() {
-        console.log('Window load: Initializing history page');
+    document.addEventListener('DOMContentLoaded', function() {
         loadFilterOptions();
         initEventListeners();
         loadSegments();
-    });
-
-    // Also try DOMContentLoaded as backup
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOMContentLoaded: Initializing history page');
-        loadFilterOptions();
-        initEventListeners();
-        // Delay loadSegments slightly to ensure DOM is ready
-        setTimeout(loadSegments, 100);
     });
 })();
 </script>

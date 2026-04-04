@@ -606,7 +606,8 @@ class Database:
                 params,
             ).fetchone()[0]
             rows = conn.execute(
-                f"""SELECT j.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name
+                f"""SELECT j.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
+                          COALESCE(json_extract(j.raw_result, '$.raw.model'), json_extract(j.raw_result, '$.model'), json_extract(j.payload_json, '$.model'), json_extract(j.payload_json, '$.llm_vision_model')) AS model_used
                    FROM jobs j JOIN cameras c ON c.id = j.camera_id{where}
                    ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?""",
                 (*params, page_size, offset),
@@ -714,7 +715,7 @@ class Database:
                           j.job_type, j.raw_result, j.payload_json
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
-                   JOIN jobs j ON j.id = s.job_id{where} ORDER BY s.id DESC LIMIT ? OFFSET ?""",
+                   LEFT JOIN jobs j ON j.id = s.job_id{where} ORDER BY s.id DESC LIMIT ? OFFSET ?""",
                 (*params, limit, offset),
             ).fetchall()
             items = []
@@ -783,7 +784,7 @@ class Database:
                           j.job_type, j.raw_result, j.payload_json
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
-                   JOIN jobs j ON j.id = s.job_id{where}
+                   LEFT JOIN jobs j ON j.id = s.job_id{where}
                    ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?""",
                 (*params, page_size, offset),
             ).fetchall()
@@ -873,6 +874,7 @@ class Database:
             rows = conn.execute(
                 f"""SELECT s.id, s.camera_id, s.start_ts, s.end_ts, s.label, s.confidence, s.notes, s.evidence_path, s.reviewed_label,
                     c.name AS camera_name,
+                    j.raw_result,
                     COALESCE(
                         (SELECT GROUP_CONCAT(g.name, ', ')
                          FROM groups g
@@ -880,7 +882,8 @@ class Database:
                          WHERE cg.camera_id = s.camera_id), ''
                     ) AS group_names
                     FROM segments s
-                    JOIN cameras c ON c.id = s.camera_id{where}
+                    JOIN cameras c ON c.id = s.camera_id
+                    LEFT JOIN jobs j ON j.id = s.job_id{where}
                     ORDER BY s.created_at DESC
                     LIMIT ? OFFSET ?""",
                 (*params, page_size, offset),
@@ -889,6 +892,10 @@ class Database:
             items = []
             for row in rows:
                 item = dict(row)
+                raw_result = item.get("raw_result")
+                item["raw_result"] = json.loads(raw_result) if raw_result else {}
+                item["evidence_frames"] = item["raw_result"].get("evidence_frames", [])
+                item["primary_evidence_path"] = item["raw_result"].get("primary_evidence_path")
                 if item.get("start_ts") and item.get("end_ts"):
                     try:
                         start = datetime.fromisoformat(item["start_ts"])
@@ -924,7 +931,9 @@ class Database:
     def update_daily_rollup(self, day: str, camera_id: int, label: str, seconds: int):
         col_map = {
             "working": "working_seconds",
+            "not_working": "idle_seconds",
             "idle": "idle_seconds",
+            "no_person": "stopped_seconds",
             "sleeping": "sleeping_seconds",
             "uncertain": "uncertain_seconds",
             "stopped": "stopped_seconds",

@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 from fastapi.testclient import TestClient
 
 from factory_analytics.main import app
@@ -40,30 +41,21 @@ def test_history_page_renders_and_has_filters():
 
 
 def test_history_page_renders_inline_evidence_preview_hooks():
-    client = TestClient(app)
-    r = client.get("/history")
-    assert r.status_code == 200
-    html = r.text
-    assert 'class="history-evidence-link"' in html
-    assert 'class="history-evidence-image"' in html
+    source = Path("factory_analytics/templates/history.html").read_text()
+    assert "evidenceHtml" in source
+    assert "object-cover" in source
 
 
 def test_history_page_renders_llm_response_hooks():
-    client = TestClient(app)
-    r = client.get("/history")
-    assert r.status_code == 200
-    html = r.text
-    assert 'class="history-llm-notes"' in html
-    assert 'class="history-merge-meta"' in html
+    source = Path("factory_analytics/templates/history.html").read_text()
+    assert "No extended analysis available." in source
+    assert "s.notes ||" in source
 
 
 def test_history_page_renders_group_result_badge_hooks():
-    client = TestClient(app)
-    r = client.get("/history")
-    assert r.status_code == 200
-    html = r.text
-    assert 'class="history-group-badge"' in html
-    assert 'class="history-group-name"' in html
+    source = Path("factory_analytics/templates/history.html").read_text()
+    assert "Group: ${s.group_name}" in source
+    assert "group_name" in source
 
 
 def test_logs_page_renders_and_log_view_present():
@@ -100,3 +92,56 @@ def test_api_explorer_page_contains_catalog_hooks():
     html = r.text
     assert 'id="api-catalog"' in html
     assert 'id="skill-usage-notes"' in html
+
+
+def test_photos_modal_uses_evidence_frames_gallery():
+    source = Path("factory_analytics/static/photos.js").read_text()
+    assert "evidence_frames" in source
+    assert "modalFrames" in source
+
+
+def test_dashboard_and_efficiency_js_use_evidence_frames():
+    app_js = Path("factory_analytics/static/app.js").read_text()
+    eff_js = Path("factory_analytics/static/efficiency.js").read_text()
+    assert "evidence_frames" in app_js
+    assert "evidence_frames" in eff_js
+
+
+def test_ui_javascript_uses_new_label_set():
+    app_js = Path("factory_analytics/static/app.js").read_text()
+    eff_js = Path("factory_analytics/static/efficiency.js").read_text()
+    photos_js = Path("factory_analytics/static/photos.js").read_text()
+    photos_html = Path("factory_analytics/templates/photos.html").read_text()
+    history_html = Path("factory_analytics/templates/history.html").read_text()
+
+    assert "not_working" in app_js
+    assert "no_person" in app_js
+    assert "not_working" in eff_js
+    assert "no_person" in eff_js
+    assert "not_working" in photos_js
+    assert "no_person" in photos_js
+    assert 'option value="not_working"' in photos_html
+    assert 'option value="no_person"' in photos_html
+    assert 'option value="not_working"' in history_html
+    assert 'option value="no_person"' in history_html
+
+
+def test_jobs_ui_shows_model_column_and_value():
+    jobs_html = Path("factory_analytics/templates/jobs.html").read_text()
+    db_source = Path("factory_analytics/database.py").read_text()
+
+    assert "Model" in jobs_html
+    assert "job.model_used" in jobs_html
+    assert "AS model_used" in db_source
+
+
+def test_history_template_uses_evidence_frames_and_single_init_hook():
+    source = Path("factory_analytics/templates/history.html").read_text()
+    assert "evidence_frames" in source
+    assert source.count("DOMContentLoaded") == 1
+    assert "window.addEventListener('load'" not in source
+
+
+def test_photos_js_avoids_inline_segment_json_onclick():
+    source = Path("factory_analytics/static/photos.js").read_text()
+    assert "JSON.stringify(p).replace" not in source

@@ -20,9 +20,8 @@
     transform: scale(1.05);
 }
 .status-working { background: rgba(0, 228, 117, 0.15); border-left: 4px solid #00e475; }
-.status-idle { background: rgba(144, 144, 148, 0.1); border-left: 4px solid #909094; }
-.status-sleeping { background: rgba(184, 195, 255, 0.15); border-left: 4px solid #b8c3ff; }
-.status-stopped { background: rgba(255, 180, 171, 0.15); border-left: 4px solid #ffb4ab; }
+.status-not-working { background: rgba(144, 144, 148, 0.1); border-left: 4px solid #909094; }
+.status-no-person { background: rgba(184, 195, 255, 0.15); border-left: 4px solid #b8c3ff; }
 .status-uncertain { background: rgba(200, 200, 200, 0.1); border-left: 4px solid #c8c8c8; }
 </style>
 
@@ -35,9 +34,8 @@
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-2 text-xs flex-wrap">
                 <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#00e475"></span>Working</span>
-                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-outline"></span>Idle</span>
-                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#b8c3ff"></span>Sleeping</span>
-                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#ffb4ab"></span>Stopped</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-outline"></span>Not Working</span>
+                <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#b8c3ff"></span>No Person</span>
                 <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:#c8c8c8"></span>Uncertain</span>
             </div>
         </div>
@@ -77,9 +75,8 @@
             <label class="text-xs font-label uppercase tracking-widest text-outline">Status</label>
             <select id="statusFilter" multiple class="w-full bg-surface-container-lowest border-b border-outline-variant text-on-surface py-2 px-3 focus:border-primary focus:ring-0 text-sm h-24">
                 <option value="working">Working</option>
-                <option value="idle">Idle</option>
-                <option value="sleeping">Sleeping</option>
-                <option value="stopped">Stopped</option>
+                <option value="not_working">Not Working</option>
+                <option value="no_person">No Person</option>
                 <option value="uncertain">Uncertain</option>
             </select>
         </div>
@@ -184,6 +181,10 @@
                 <img id="modalImage" src="" alt="" class="max-w-full max-h-[60vh] object-contain rounded-lg">
             </div>
             <div class="md:w-80 p-4 space-y-4 border-t md:border-t-0 md:border-l border-outline-variant/10 overflow-y-auto">
+                <div>
+                    <span class="text-xs font-label uppercase tracking-widest text-outline">Frames</span>
+                    <div id="modalFrames" class="mt-2 grid grid-cols-3 gap-2"></div>
+                </div>
                 <div>
                     <span class="text-xs font-label uppercase tracking-widest text-outline">Segment</span>
                     <p id="modalSegmentId" class="text-sm font-bold text-primary mt-1"></p>

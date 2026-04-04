@@ -5,6 +5,7 @@
         page: 1,
         pageSize: 20,
         total: 0,
+        photoIndex: {},
         filters: {
             dateFrom: null,
             dateTo: null,
@@ -34,6 +35,7 @@
         modalTitle: document.getElementById('modalTitle'),
         modalImage: document.getElementById('modalImage'),
         modalSegmentId: document.getElementById('modalSegmentId'),
+        modalFrames: document.getElementById('modalFrames'),
         modalStatus: document.getElementById('modalStatus'),
         modalCamera: document.getElementById('modalCamera'),
         modalGroups: document.getElementById('modalGroups'),
@@ -62,9 +64,8 @@
     function getLabelColor(label) {
         const colors = {
             'working': { bg: 'status-working', dot: '#00e475' },
-            'sleeping': { bg: 'status-sleeping', dot: '#b8c3ff' },
-            'idle': { bg: 'status-idle', dot: '#909094' },
-            'stopped': { bg: 'status-stopped', dot: '#ffb4ab' },
+            'not_working': { bg: 'status-not-working', dot: '#909094' },
+            'no_person': { bg: 'status-no-person', dot: '#b8c3ff' },
             'uncertain': { bg: 'status-uncertain', dot: '#c8c8c8' }
         };
         return colors[label] || colors['uncertain'];
@@ -95,6 +96,22 @@
         return remainMins > 0 ? `${hours}h ${remainMins}m` : `${hours}h`;
     }
 
+    function getEvidenceFrames(photo) {
+        if (photo.evidence_frames && photo.evidence_frames.length) {
+            return photo.evidence_frames.filter(Boolean);
+        }
+        return [photo.evidence_path].filter(Boolean);
+    }
+
+    function renderEvidenceFrames(photo) {
+        const frames = getEvidenceFrames(photo);
+        return frames.map((path, index) => `
+            <button type="button" class="evidence-frame-button rounded-lg overflow-hidden border border-outline-variant/20" data-frame-path="${path}">
+                <img src="/${path}" alt="Evidence ${index + 1}" class="w-24 h-16 object-cover" loading="lazy">
+            </button>
+        `).join('');
+    }
+
     function renderPhotos(photos) {
         if (!elements.photoGrid) return;
 
@@ -106,16 +123,20 @@
 
         elements.emptyState.classList.add('hidden');
 
+        state.photoIndex = Object.fromEntries((photos || []).map(photo => [String(photo.id), photo]));
+
         const html = photos.map(p => {
-            const colors = getLabelColor(p.label);
             const displayLabel = p.reviewed_label || p.label;
+            const colors = getLabelColor(displayLabel);
             const duration = formatDuration(p.duration_seconds);
             const confidence = Math.round((p.confidence || 0) * 100);
+            const frames = getEvidenceFrames(p);
+            const primaryImage = frames[0] || '';
 
             return `
-            <div class="photo-card ${colors.bg} rounded-xl overflow-hidden cursor-pointer" onclick="window.openPhotoModal(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+            <div class="photo-card ${colors.bg} rounded-xl overflow-hidden cursor-pointer" data-photo-id="${p.id}">
                 <div class="photo-img-container aspect-video bg-surface-container-lowest">
-                    <img src="/${p.evidence_path}" alt="${displayLabel}" class="w-full h-full object-cover" loading="lazy">
+                    <img src="/${primaryImage}" alt="${displayLabel}" class="w-full h-full object-cover" loading="lazy">
                 </div>
                 <div class="p-4 space-y-2">
                     <div class="flex items-center gap-2">
@@ -280,12 +301,14 @@
     }
 
     window.openPhotoModal = function(photo) {
-        const colors = getLabelColor(photo.label);
         const displayLabel = photo.reviewed_label || photo.label;
+        const colors = getLabelColor(displayLabel);
+        const frames = getEvidenceFrames(photo);
 
         elements.modalTitle.textContent = displayLabel.charAt(0).toUpperCase() + displayLabel.slice(1) + ' Evidence';
-        elements.modalImage.src = '/' + photo.evidence_path;
+        elements.modalImage.src = frames[0] ? '/' + frames[0] : '';
         elements.modalImage.alt = displayLabel;
+        elements.modalFrames.innerHTML = renderEvidenceFrames({ ...photo, evidence_frames: frames });
         elements.modalSegmentId.textContent = '#SEG-' + photo.id;
         elements.modalStatus.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold ${colors.bg}" style="color:${colors.dot}"><span class="w-1.5 h-1.5 rounded-full" style="background:${colors.dot}"></span>${displayLabel}</span>`;
         elements.modalCamera.textContent = photo.camera_name || 'Unknown';
@@ -329,6 +352,19 @@
         elements.toggleFilters.addEventListener('click', () => {
             elements.filtersContent.classList.toggle('hidden');
             elements.filterArrow.style.transform = elements.filtersContent.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+        });
+
+        elements.photoGrid.addEventListener('click', (e) => {
+            const card = e.target.closest('[data-photo-id]');
+            if (!card) return;
+            const photo = state.photoIndex[card.dataset.photoId];
+            if (photo) window.openPhotoModal(photo);
+        });
+
+        elements.modalFrames.addEventListener('click', (e) => {
+            const button = e.target.closest('[data-frame-path]');
+            if (!button) return;
+            elements.modalImage.src = '/' + button.dataset.framePath;
         });
 
         elements.timeFrom.addEventListener('input', () => {
