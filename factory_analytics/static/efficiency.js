@@ -17,22 +17,18 @@
 
   const LABEL_COLORS = {
     working: '#00E396',
-    idle: '#FEB019',
-    operator_missing: '#775DD0',
-    stopped: '#FF4560',
+    not_working: '#FEB019',
+    no_person: '#775DD0',
     uncertain: '#6B7280',
     error: '#FF4560',
-    timepass: '#00B4D8',
   };
 
   const STATUS_LABELS = {
     working: 'Working',
-    idle: 'Idle',
-    operator_missing: 'Operator Missing',
-    stopped: 'Stopped',
+    not_working: 'Not Working',
+    no_person: 'No Person',
     uncertain: 'Uncertain',
     error: 'Error',
-    timepass: 'Timepass',
   };
 
   function init() {
@@ -427,7 +423,7 @@
       seriesMap[cam.label][dayIdx].total += (r.total_minutes || 0);
     });
 
-    const labelScores = { working: 5, idle: 3, operator_missing: 2, stopped: 1, uncertain: 0, error: 0, timepass: 1 };
+    const labelScores = { working: 5, not_working: 3, no_person: 2, uncertain: 0, error: 0 };
     const series = Object.entries(seriesMap).map(([name, days]) => ({
       name,
       data: days.map((cell, i) => {
@@ -494,12 +490,12 @@
         const resp = await fetch(`/api/evidence/${meta.segmentId}`);
         if (resp.ok) {
           const data = await resp.json();
-          const framePaths = Array.isArray(data.frame_paths) ? data.frame_paths.filter(Boolean) : [];
-          
-          if (framePaths.length > 0) {
+          const evidenceFrames = Array.isArray(data.evidence_frames) ? data.evidence_frames.filter(Boolean) : [];
+
+          if (evidenceFrames.length > 0) {
             const container = document.createElement('div');
             container.className = 'grid grid-cols-3 gap-1.5 max-h-28 overflow-y-auto';
-            framePaths.forEach(fp => {
+            evidenceFrames.forEach(fp => {
               const img = document.createElement('img');
               img.src = '/' + fp;
               img.alt = 'Frame';
@@ -573,12 +569,9 @@
         const evResp = await fetch(`/api/evidence/${segmentId}`);
         if (evResp.ok) {
           const evData = await evResp.json();
-          const fps = Array.isArray(evData.frame_paths) ? evData.frame_paths.filter(Boolean) : [];
+          const fps = Array.isArray(evData.evidence_frames) ? evData.evidence_frames.filter(Boolean) : [];
           if (fps.length > 0) {
             evidenceHtml = `<div class="grid grid-cols-2 gap-2">${fps.map(fp => `<img src="/${fp}" alt="Frame" class="w-full rounded-lg border border-outline-variant/20 cursor-pointer hover:opacity-90 transition-opacity" onclick="window.open('/${fp}','_blank')" />`).join('')}</div>`;
-            if (evData.evidence_path) {
-              evidenceHtml += `<a href="/${evData.evidence_path}" target="_blank" class="block text-xs text-primary hover:underline mt-2">View combined strip</a>`;
-            }
           } else if (evData.evidence_path) {
             evidenceHtml = `<img src="/${evData.evidence_path}" alt="Evidence" class="w-full rounded-lg border border-outline-variant/20 cursor-pointer hover:opacity-90 transition-opacity" onclick="window.open('/${evData.evidence_path}','_blank')" />`;
           }

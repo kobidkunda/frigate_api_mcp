@@ -731,8 +731,9 @@ def evidence(segment_id: int):
     raw_result = segment.get("raw_result") or {}
     return {
         "segment_id": segment_id,
-        "evidence_path": segment.get("evidence_path"),
-        "frame_paths": raw_result.get("frame_paths", []),
+        "evidence_path": raw_result.get("primary_evidence_path")
+        or segment.get("evidence_path"),
+        "evidence_frames": raw_result.get("evidence_frames", []),
     }
 
 

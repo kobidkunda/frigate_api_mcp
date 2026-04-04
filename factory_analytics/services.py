@@ -7,8 +7,6 @@ from typing import Any
 
 from factory_analytics.config import DATA_ROOT
 from factory_analytics.database import Database
-from factory_analytics.image_annotations import draw_person_boxes
-from factory_analytics.image_composition import merge_group_snapshots
 from factory_analytics.integrations.frigate import FrigateClient
 from factory_analytics.integrations.ollama import OpenAIClient
 from factory_analytics.integrations.image_pipeline import (
@@ -362,34 +360,15 @@ class AnalyticsService:
                 camera, img_settings
             )
             frame_paths = frame_result["frame_paths"]
-            strip_path = frame_result["strip_path"]
-            if frame_paths:
-                images_to_send = frame_paths
-            else:
-                images_to_send = [strip_path]
+            images_to_send = frame_paths or [frame_result["strip_path"]]
             seconds_apart = img_settings.get("seconds_window", 1)
             result = self.ollama_client().classify_images(
                 images_to_send, seconds_apart=seconds_apart
             )
-            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            evidence_dir = (
-                DATA_ROOT
-                / "evidence"
-                / "snapshots"
-                / f"{camera['frigate_name']}_{stamp}"
-            )
-            evidence_dir.mkdir(parents=True, exist_ok=True)
-            annotated_paths = []
-            quality = img_settings["quality"]
-            for i, img_path in enumerate(images_to_send):
-                ann_path = evidence_dir / f"frame_{i}_annotated.jpg"
-                draw_person_boxes(
-                    img_path, ann_path, result.get("boxes", []), quality=quality
-                )
-                annotated_paths.append(ann_path)
-            evidence_path = ";".join(
-                str(p.relative_to(DATA_ROOT.parent)) for p in annotated_paths
-            )
+            stored_frames = [
+                str(path.relative_to(DATA_ROOT.parent)) for path in images_to_send
+            ]
+            primary_evidence_path = stored_frames[0]
             start_ts, end_ts = self._resolve_job_window(job, camera, settings)
             segment = self.db.create_segment(
                 job_id=job["id"],
@@ -399,7 +378,7 @@ class AnalyticsService:
                 label=result["label"],
                 confidence=float(result["confidence"]),
                 notes=result.get("notes", ""),
-                evidence_path=evidence_path,
+                evidence_path=primary_evidence_path,
             )
             day = start_ts[:10]
             seconds = max(
@@ -419,24 +398,17 @@ class AnalyticsService:
                     "last_status": "ok",
                 },
             )
-            stored_result = dict(result)
-            if frame_paths:
-                stored_result["frame_paths"] = [
-                    str(p.relative_to(DATA_ROOT.parent)) for p in frame_paths
-                ]
-            stored_result["evidence_paths"] = [
-                str(p.relative_to(DATA_ROOT.parent)) for p in annotated_paths
-            ]
-            snapshot_path_str = (
-                str(annotated_paths[0].relative_to(DATA_ROOT.parent))
-                if annotated_paths
-                else str(strip_path.relative_to(DATA_ROOT.parent))
-            )
+            stored_result = {
+                **result,
+                "frame_count": len(stored_frames),
+                "primary_evidence_path": primary_evidence_path,
+                "evidence_frames": stored_frames,
+            }
             self.db.mark_job_finished(
                 job["id"],
                 "success",
                 raw_result=stored_result,
-                snapshot_path=snapshot_path_str,
+                snapshot_path=primary_evidence_path,
             )
             return {"job": self.db.get_job(job["id"]), "segment": segment}
         except Exception as exc:
@@ -480,7 +452,6 @@ class AnalyticsService:
             raise RuntimeError("Group has no cameras")
 
         anchor_camera = cameras[0]
-        all_frame_paths: dict[str, list[str]] = {}
         included_cameras: list[str] = []
         missing_cameras: list[str] = []
 
@@ -496,11 +467,6 @@ class AnalyticsService:
                     else [frame_result["strip_path"]]
                 )
                 camera_frames.append([(camera["frigate_name"], f) for f in frames])
-                if frame_result["frame_paths"]:
-                    all_frame_paths[camera["frigate_name"]] = [
-                        str(p.relative_to(DATA_ROOT.parent))
-                        for p in frame_result["frame_paths"]
-                    ]
                 included_cameras.append(camera["frigate_name"])
             except Exception:
                 missing_cameras.append(camera["frigate_name"])
@@ -541,15 +507,17 @@ class AnalyticsService:
             seconds_apart=seconds_apart,
             camera_count=len(included_cameras),
         )
-
-        annotated = self._group_annotated_path(group["group_type"], group["name"])
-        draw_person_boxes(per_frame_collages[0], annotated, result.get("boxes", []))
+        result = self._apply_group_label_rule(result)
 
         notes = result.get("notes", "")
         if missing_cameras:
             suffix = f" Missing cameras: {', '.join(missing_cameras)}."
             notes = f"{notes}{suffix}".strip()
 
+        stored_frames = [
+            str(path.relative_to(DATA_ROOT.parent)) for path in per_frame_collages
+        ]
+        primary_evidence_path = stored_frames[0]
         start_ts = datetime.now(timezone.utc).isoformat()
         end_ts = start_ts
         segment = self.db.create_segment(
@@ -560,12 +528,15 @@ class AnalyticsService:
             label=result["label"],
             confidence=float(result["confidence"]),
             notes=notes,
-            evidence_path=str(annotated.relative_to(DATA_ROOT.parent)),
+            evidence_path=primary_evidence_path,
         )
 
         stored_result = {
             **result,
             "notes": notes,
+            "frame_count": len(stored_frames),
+            "primary_evidence_path": primary_evidence_path,
+            "evidence_frames": stored_frames,
             "included_cameras": included_cameras,
             "missing_cameras": missing_cameras,
             "group_id": group_id,
@@ -573,14 +544,12 @@ class AnalyticsService:
             "group_type": group["group_type"],
             "segment_id": segment["id"],
         }
-        if all_frame_paths:
-            stored_result["frame_paths"] = all_frame_paths
 
         self.db.mark_job_finished(
             job["id"],
             "success",
             raw_result=stored_result,
-            snapshot_path=str(annotated.relative_to(DATA_ROOT.parent)),
+            snapshot_path=primary_evidence_path,
         )
 
         return {
@@ -686,9 +655,10 @@ class AnalyticsService:
         count = img_settings["frames"]
 
         if count <= 1:
+            single = self._capture_snapshot(camera_name)
             return {
-                "strip_path": self._capture_snapshot(camera_name),
-                "frame_paths": [],
+                "strip_path": single,
+                "frame_paths": [single],
             }
 
         frames = fetch_frames(frigate, camera_name, count)
@@ -728,24 +698,21 @@ class AnalyticsService:
             "frame_paths": frame_paths,
         }
 
-    def _annotated_snapshot_path(self, camera_name: str) -> Path:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        return (
-            DATA_ROOT
-            / "evidence"
-            / "snapshots"
-            / f"{camera_name}_{stamp}_annotated.jpg"
-        )
+    def _apply_group_label_rule(self, result: dict[str, Any]) -> dict[str, Any]:
+        observations = result.get("observations") or []
+        if any(item.get("label") == "working" for item in observations):
+            return {
+                **result,
+                "label": "working",
+                "notes": result.get("notes")
+                or "working activity visible in at least one collage",
+            }
+        return result
 
     def _group_composite_path(self, group_type: str, group_name: str) -> Path:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         slug = f"{group_type}_{group_name}".replace(" ", "_").replace("/", "_")
         return DATA_ROOT / "evidence" / "groups" / f"{slug}_{stamp}.jpg"
-
-    def _group_annotated_path(self, group_type: str, group_name: str) -> Path:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        slug = f"{group_type}_{group_name}".replace(" ", "_").replace("/", "_")
-        return DATA_ROOT / "evidence" / "groups" / f"{slug}_{stamp}_annotated.jpg"
 
     def camera_health(self, camera_id: int):
         return self.db.camera_health(camera_id)

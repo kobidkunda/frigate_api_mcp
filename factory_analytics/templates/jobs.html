@@ -103,6 +103,7 @@
                     <th class="px-4 py-4 font-semibold">Job ID</th>
                     <th class="px-4 py-4 font-semibold">Camera</th>
                     <th class="px-4 py-4 font-semibold">Type</th>
+                    <th class="px-4 py-4 font-semibold">Model</th>
                     <th class="px-4 py-4 font-semibold">Status</th>
                     <th class="px-4 py-4 font-semibold">Scheduled</th>
                     <th class="px-4 py-4 font-semibold">Started</th>
@@ -216,7 +217,7 @@ async function loadJobs() {
         if (!data.jobs || data.jobs.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="px-6 py-12 text-center text-outline">
+                    <td colspan="10" class="px-6 py-12 text-center text-outline">
                         <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
                         <p class="font-label text-sm uppercase tracking-widest">No jobs found</p>
                     </td>
@@ -234,6 +235,7 @@ async function loadJobs() {
                     <td class="px-4 py-4 font-mono text-sm text-primary">#${job.id}</td>
                     <td class="px-4 py-4 text-sm">${job.camera_name || job.camera_frigate_name || '-'}</td>
                     <td class="px-4 py-4 text-sm">${job.job_type || 'analysis'}</td>
+                    <td class="px-4 py-4 text-sm font-mono text-outline">${job.model_used || '-'}</td>
                     <td class="px-4 py-4">${statusBadge}</td>
                     <td class="px-4 py-4 text-sm text-outline">${formatTime(job.scheduled_for)}</td>
                     <td class="px-4 py-4 text-sm text-outline">${formatTime(job.started_at)}</td>
