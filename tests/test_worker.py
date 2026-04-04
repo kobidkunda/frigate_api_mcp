@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from factory_analytics.database import Database
@@ -170,3 +171,57 @@ def test_services_module_no_longer_imports_image_annotations():
     source = Path("factory_analytics/services.py").read_text()
     assert "image_annotations" not in source
     assert "draw_person_boxes" not in source
+
+
+def test_list_segments_paginated_exposes_model_used(tmp_path: Path):
+    """list_segments_paginated returns model_used computed from job result fields."""
+    db = Database(path=tmp_path / "segments.db")
+    camera = db.upsert_camera("cam_01", "Test Cam")
+    db.update_camera(camera["id"], {"enabled": True})
+
+    job = db.schedule_job(camera["id"], payload={"source": "test"})
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE jobs SET raw_result = ? WHERE id = ?",
+            (json.dumps({"raw": {"model": "vision-alpha"}}), job["id"]),
+        )
+
+    db.create_segment(
+        job_id=job["id"],
+        camera_id=camera["id"],
+        start_ts="2026-04-05T12:30:00",
+        end_ts="2026-04-05T12:31:00",
+        label="working",
+        confidence=0.95,
+    )
+
+    result = db.list_segments_paginated(page=1, page_size=10)
+    assert len(result["items"]) == 1
+    assert result["items"][0]["model_used"] == "vision-alpha"
+
+
+def test_report_daily_recent_segments_expose_model_used(tmp_path: Path):
+    """report_daily recent_segments include model_used from the associated job."""
+    db = Database(path=tmp_path / "report.db")
+    camera = db.upsert_camera("cam_02", "Report Cam")
+    db.update_camera(camera["id"], {"enabled": True})
+
+    job = db.schedule_job(camera["id"], payload={"source": "daily"})
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE jobs SET payload_json = ? WHERE id = ?",
+            (json.dumps({"model": "report-model-v2"}), job["id"]),
+        )
+
+    db.create_segment(
+        job_id=job["id"],
+        camera_id=camera["id"],
+        start_ts="2026-04-05T14:00:00",
+        end_ts="2026-04-05T14:05:00",
+        label="idle",
+        confidence=0.80,
+    )
+
+    report = db.report_daily("2026-04-05")
+    assert len(report["recent_segments"]) >= 1
+    assert report["recent_segments"][0]["model_used"] == "report-model-v2"

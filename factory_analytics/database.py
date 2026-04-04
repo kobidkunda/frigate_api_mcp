@@ -781,7 +781,13 @@ class Database:
             ).fetchone()[0]
             rows = conn.execute(
                 f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
-                          j.job_type, j.raw_result, j.payload_json
+                          j.job_type, j.raw_result, j.payload_json,
+                          COALESCE(
+                              json_extract(j.raw_result, '$.raw.model'),
+                              json_extract(j.raw_result, '$.model'),
+                              json_extract(j.payload_json, '$.model'),
+                              json_extract(j.payload_json, '$.llm_vision_model')
+                          ) AS model_used
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
                    LEFT JOIN jobs j ON j.id = s.job_id{where}
@@ -1089,7 +1095,16 @@ class Database:
                 (day,),
             ).fetchall()
             segments = conn.execute(
-                """SELECT s.*, c.name AS camera_name FROM segments s JOIN cameras c ON c.id=s.camera_id
+                """SELECT s.*, c.name AS camera_name,
+                          COALESCE(
+                              json_extract(j.raw_result, '$.raw.model'),
+                              json_extract(j.raw_result, '$.model'),
+                              json_extract(j.payload_json, '$.model'),
+                              json_extract(j.payload_json, '$.llm_vision_model')
+                          ) AS model_used
+                   FROM segments s
+                   JOIN cameras c ON c.id=s.camera_id
+                   LEFT JOIN jobs j ON j.id = s.job_id
                    WHERE substr(s.start_ts,1,10)=? ORDER BY s.id DESC LIMIT 20""",
                 (day,),
             ).fetchall()
