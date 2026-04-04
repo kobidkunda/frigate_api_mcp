@@ -13,7 +13,9 @@ def _load_pil():
     return Image, ImageDraw
 
 
-def draw_person_boxes(input_image: Path, output_image: Path, boxes: list[dict]) -> Path:
+def draw_person_boxes(
+    input_image: Path, output_image: Path, boxes: list[dict], quality: int = 80
+) -> Path:
     Image, ImageDraw = _load_pil()
     image = Image.open(input_image).convert("RGB")
     draw = ImageDraw.Draw(image)
@@ -31,5 +33,5 @@ def draw_person_boxes(input_image: Path, output_image: Path, boxes: list[dict]) 
         draw.rectangle([left, top, right, bottom], outline=(255, 0, 0), width=4)
 
     output_image.parent.mkdir(parents=True, exist_ok=True)
-    image.save(output_image, format="JPEG", quality=95)
+    image.save(output_image, format="JPEG", quality=quality)
     return output_image

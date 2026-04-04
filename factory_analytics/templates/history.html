@@ -186,7 +186,15 @@
             
             let evidenceHtml = '<div class="w-32 h-20 rounded-md bg-surface-container-highest border border-outline-variant/10 flex items-center justify-center"><span class="text-[10px] text-outline font-label uppercase">No Feed</span></div>';
             if (s.evidence_path) {
-                evidenceHtml = `<a href="/${s.evidence_path}" target="_blank" class="block w-32 h-20 rounded-md overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors"><img src="/${s.evidence_path}" alt="${s.label}" class="w-full h-full object-cover" loading="lazy"></a>`;
+                const paths = s.evidence_path.split(';').filter(Boolean);
+                if (paths.length === 1) {
+                    evidenceHtml = `<a href="/${paths[0]}" target="_blank" class="block w-32 h-20 rounded-md overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors"><img src="/${paths[0]}" alt="${s.label}" class="w-full h-full object-cover" loading="lazy"></a>`;
+                } else {
+                    const thumbs = paths.map((p, i) => 
+                        `<a href="/${p}" target="_blank" class="w-10 h-10 rounded overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors flex-shrink-0"><img src="/${p}" alt="frame ${i+1}" class="w-full h-full object-cover" loading="lazy"></a>`
+                    ).join('');
+                    evidenceHtml = `<div class="flex gap-1 items-center">${thumbs}</div>`;
+                }
             }
 
             let groupHtml = '';

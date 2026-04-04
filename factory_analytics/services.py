@@ -10,7 +10,7 @@ from factory_analytics.database import Database
 from factory_analytics.image_annotations import draw_person_boxes
 from factory_analytics.image_composition import merge_group_snapshots
 from factory_analytics.integrations.frigate import FrigateClient
-from factory_analytics.integrations.ollama import OllamaClient
+from factory_analytics.integrations.ollama import OpenAIClient
 from factory_analytics.integrations.image_pipeline import (
     fetch_frames,
     resize_pil_image,
@@ -44,8 +44,8 @@ class AnalyticsService:
     def frigate_client(self) -> FrigateClient:
         return FrigateClient(self.settings())
 
-    def ollama_client(self) -> OllamaClient:
-        return OllamaClient(self.settings())
+    def ollama_client(self) -> OpenAIClient:
+        return OpenAIClient(self.settings())
 
     def sync_cameras_from_frigate(self) -> dict[str, Any]:
         cams = self.frigate_client().fetch_cameras()
@@ -236,7 +236,7 @@ class AnalyticsService:
                 "ok": False,
                 "message": f"Ollama health failed: {health.get('message', 'unknown error')}",
             }
-        model = settings.get("ollama_vision_model")
+        model = settings.get("llm_vision_model")
         models = set(health.get("models") or [])
         if model not in models:
             return {
@@ -281,7 +281,7 @@ class AnalyticsService:
                 "ok": False,
                 "message": f"Ollama unreachable: {health.get('message', 'unknown error')}",
             }
-        model = settings.get("ollama_vision_model")
+        model = settings.get("llm_vision_model")
         models = set(health.get("models") or [])
         model_found = model in models
         return {
@@ -361,11 +361,35 @@ class AnalyticsService:
             frame_result = self._process_frame_collection_for_camera(
                 camera, img_settings
             )
-            snapshot_path = frame_result["strip_path"]
             frame_paths = frame_result["frame_paths"]
-            annotated_path = self._annotated_snapshot_path(camera["frigate_name"])
-            result = self.ollama_client().classify_image(snapshot_path)
-            draw_person_boxes(snapshot_path, annotated_path, result.get("boxes", []))
+            strip_path = frame_result["strip_path"]
+            if frame_paths:
+                images_to_send = frame_paths
+            else:
+                images_to_send = [strip_path]
+            seconds_apart = img_settings.get("seconds_window", 1)
+            result = self.ollama_client().classify_images(
+                images_to_send, seconds_apart=seconds_apart
+            )
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            evidence_dir = (
+                DATA_ROOT
+                / "evidence"
+                / "snapshots"
+                / f"{camera['frigate_name']}_{stamp}"
+            )
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            annotated_paths = []
+            quality = img_settings["quality"]
+            for i, img_path in enumerate(images_to_send):
+                ann_path = evidence_dir / f"frame_{i}_annotated.jpg"
+                draw_person_boxes(
+                    img_path, ann_path, result.get("boxes", []), quality=quality
+                )
+                annotated_paths.append(ann_path)
+            evidence_path = ";".join(
+                str(p.relative_to(DATA_ROOT.parent)) for p in annotated_paths
+            )
             start_ts, end_ts = self._resolve_job_window(job, camera, settings)
             segment = self.db.create_segment(
                 job_id=job["id"],
@@ -375,7 +399,7 @@ class AnalyticsService:
                 label=result["label"],
                 confidence=float(result["confidence"]),
                 notes=result.get("notes", ""),
-                evidence_path=str(annotated_path.relative_to(DATA_ROOT.parent)),
+                evidence_path=evidence_path,
             )
             day = start_ts[:10]
             seconds = max(
@@ -400,11 +424,19 @@ class AnalyticsService:
                 stored_result["frame_paths"] = [
                     str(p.relative_to(DATA_ROOT.parent)) for p in frame_paths
                 ]
+            stored_result["evidence_paths"] = [
+                str(p.relative_to(DATA_ROOT.parent)) for p in annotated_paths
+            ]
+            snapshot_path_str = (
+                str(annotated_paths[0].relative_to(DATA_ROOT.parent))
+                if annotated_paths
+                else str(strip_path.relative_to(DATA_ROOT.parent))
+            )
             self.db.mark_job_finished(
                 job["id"],
                 "success",
                 raw_result=stored_result,
-                snapshot_path=str(annotated_path.relative_to(DATA_ROOT.parent)),
+                snapshot_path=snapshot_path_str,
             )
             return {"job": self.db.get_job(job["id"]), "segment": segment}
         except Exception as exc:
@@ -439,8 +471,6 @@ class AnalyticsService:
     def _execute_group_analysis(
         self, job: dict[str, Any], group_id: int
     ) -> dict[str, Any]:
-        import shutil
-
         group = self.db.get_group(group_id)
         cameras = self.db.list_group_cameras(group_id)
         img_settings = self._get_image_settings()
@@ -450,17 +480,22 @@ class AnalyticsService:
             raise RuntimeError("Group has no cameras")
 
         anchor_camera = cameras[0]
-        strip_paths: list[tuple[str, Path]] = []
         all_frame_paths: dict[str, list[str]] = {}
         included_cameras: list[str] = []
         missing_cameras: list[str] = []
 
+        camera_frames: list[list[tuple[str, Path]]] = []
         for camera in cameras:
             try:
                 frame_result = self._process_frame_collection_for_camera(
                     camera, img_settings
                 )
-                strip_paths.append((camera["frigate_name"], frame_result["strip_path"]))
+                frames = (
+                    frame_result["frame_paths"]
+                    if frame_result["frame_paths"]
+                    else [frame_result["strip_path"]]
+                )
+                camera_frames.append([(camera["frigate_name"], f) for f in frames])
                 if frame_result["frame_paths"]:
                     all_frame_paths[camera["frigate_name"]] = [
                         str(p.relative_to(DATA_ROOT.parent))
@@ -470,26 +505,45 @@ class AnalyticsService:
             except Exception:
                 missing_cameras.append(camera["frigate_name"])
 
-        if not strip_paths:
+        if not camera_frames:
             raise RuntimeError("All group camera snapshots failed")
+
+        frame_count = max(len(cf) for cf in camera_frames)
+        camera_frames = [
+            cf + [(cf[0][0], cf[0][1])] * (frame_count - len(cf))
+            for cf in camera_frames
+        ]
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         slug = f"{group['group_type']}_{group['name']}".replace(" ", "_").replace(
             "/", "_"
         )
-        composite_path = (
-            DATA_ROOT / "evidence" / "groups" / f"{slug}_{stamp}_groupcollage.jpg"
+        collage_dir = DATA_ROOT / "evidence" / "groups" / f"{slug}_{stamp}"
+        collage_dir.mkdir(parents=True, exist_ok=True)
+
+        per_frame_collages: list[Path] = []
+        for frame_idx in range(frame_count):
+            frame_cameras = [
+                (cf[frame_idx][0], cf[frame_idx][1]) for cf in camera_frames
+            ]
+            collage_path = collage_dir / f"frame_{frame_idx}_collage.jpg"
+            if len(frame_cameras) == 1:
+                import shutil
+
+                shutil.copy2(str(frame_cameras[0][1]), str(collage_path))
+            else:
+                collage_path = build_group_collage(frame_cameras, collage_path)
+            per_frame_collages.append(collage_path)
+
+        seconds_apart = img_settings.get("seconds_window", 1)
+        result = self.ollama_client().classify_group_images(
+            per_frame_collages,
+            seconds_apart=seconds_apart,
+            camera_count=len(included_cameras),
         )
 
-        if len(strip_paths) == 1:
-            composite_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(strip_paths[0][1]), str(composite_path))
-        else:
-            composite_path = build_group_collage(strip_paths, composite_path)
-
-        result = self.ollama_client().classify_group_image(composite_path)
         annotated = self._group_annotated_path(group["group_type"], group["name"])
-        draw_person_boxes(composite_path, annotated, result.get("boxes", []))
+        draw_person_boxes(per_frame_collages[0], annotated, result.get("boxes", []))
 
         notes = result.get("notes", "")
         if missing_cameras:
@@ -607,11 +661,11 @@ class AnalyticsService:
             "720p": 720,
             "original": 0,
         }
-        # 1 photo/sec × llm_seconds_window seconds = total frames
-        frames_count = max(1, int(settings.get("llm_seconds_window", 3)))
-        fps = max(1, int(settings.get("llm_frames_per_process", 1)))
+        frames_count = max(1, int(settings.get("llm_frames_per_process", 1)))
+        seconds_window = max(1, int(settings.get("llm_seconds_window", 3)))
         return {
-            "frames": frames_count * fps,
+            "frames": frames_count,
+            "seconds_window": seconds_window,
             "resolution": resolution_map.get(
                 settings.get("image_resize_resolution", "original"), 0
             ),

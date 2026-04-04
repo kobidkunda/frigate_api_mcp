@@ -13,11 +13,14 @@ from factory_analytics.config import (
     ANALYSIS_INTERVAL_SECONDS,
     TIMEZONE,
     FRIGATE_URL,
-    OLLAMA_URL,
-    OLLAMA_VISION_MODEL,
+    LLM_URL,
+    LLM_VISION_MODEL,
     SCHEDULER_ENABLED,
     PUBLIC_BASE_URL,
 )
+from factory_analytics.logging_setup import setup_logging
+
+logger = setup_logging()
 
 DEFAULT_SETTINGS = {
     "timezone": TIMEZONE,
@@ -27,12 +30,11 @@ DEFAULT_SETTINGS = {
     "frigate_password": "",
     "frigate_bearer_token": "",
     "frigate_verify_tls": False,
-    "ollama_url": OLLAMA_URL,
-    "ollama_vision_model": OLLAMA_VISION_MODEL,
-    "ollama_timeout_sec": 120,
-    "ollama_keep_alive": "5m",
-    "ollama_enabled": True,
-    "ollama_fallback_to_vision": True,
+    "llm_url": LLM_URL,
+    "llm_vision_model": LLM_VISION_MODEL,
+    "llm_timeout_sec": 120,
+    "llm_api_key": "",
+    "llm_enabled": True,
     "analysis_interval_seconds": ANALYSIS_INTERVAL_SECONDS,
     "scheduler_enabled": SCHEDULER_ENABLED,
     "public_base_url": PUBLIC_BASE_URL,
@@ -176,11 +178,34 @@ class Database:
                 );
                 """
             )
+            now = utcnow()
+            key_map = {
+                "ollama_url": "llm_url",
+                "ollama_vision_model": "llm_vision_model",
+                "ollama_timeout_sec": "llm_timeout_sec",
+                "ollama_keep_alive": None,
+                "ollama_enabled": "llm_enabled",
+                "ollama_fallback_to_vision": None,
+            }
+            for old_key, new_key in key_map.items():
+                row = conn.execute(
+                    "SELECT key, value FROM settings WHERE key = ?", (old_key,)
+                ).fetchone()
+                if row:
+                    if new_key:
+                        existing_new = conn.execute(
+                            "SELECT key FROM settings WHERE key = ?", (new_key,)
+                        ).fetchone()
+                        if not existing_new:
+                            conn.execute(
+                                "INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)",
+                                (new_key, row["value"], now),
+                            )
+                    conn.execute("DELETE FROM settings WHERE key = ?", (old_key,))
             existing = {
                 row["key"]
                 for row in conn.execute("SELECT key FROM settings").fetchall()
             }
-            now = utcnow()
             for key, value in DEFAULT_SETTINGS.items():
                 if key not in existing:
                     conn.execute(
@@ -197,6 +222,8 @@ class Database:
         now = utcnow()
         with self.connect() as conn:
             for key, value in payload.items():
+                if key == "llm_api_key" and value == "":
+                    continue
                 conn.execute(
                     """INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)
                        ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at""",

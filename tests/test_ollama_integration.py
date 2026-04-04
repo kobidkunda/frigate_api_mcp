@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from factory_analytics.integrations.ollama import OllamaClient
+from factory_analytics.integrations.ollama import OpenAIClient
 
 
 class DummyResponse:
@@ -48,32 +48,31 @@ class SequenceDummyClient:
         return DummyResponse(self.payloads.pop(0))
 
 
+def _openai_payload(content_str):
+    return {"choices": [{"message": {"content": content_str}}]}
+
+
 def test_classify_image_requires_valid_boxes(monkeypatch, tmp_path: Path):
     image = tmp_path / "img.jpg"
     Image.new("RGB", (100, 100), color="white").save(image)
-    payload = {
-        "message": {
-            "content": json.dumps(
-                {
-                    "label": "idle",
-                    "confidence": 0.8,
-                    "notes": "worker seated",
-                    "boxes": [{"label": "person", "box": [0.1, 0.2, 0.3, 0.4]}],
-                }
-            )
+    content = json.dumps(
+        {
+            "label": "idle",
+            "confidence": 0.8,
+            "notes": "worker seated",
+            "boxes": [{"label": "person", "box": [0.1, 0.2, 0.3, 0.4]}],
         }
-    }
+    )
 
     monkeypatch.setattr(
         "factory_analytics.integrations.ollama.httpx.Client",
-        lambda *a, **k: DummyClient(payload),
+        lambda *a, **k: DummyClient(_openai_payload(content)),
     )
-    client = OllamaClient(
+    client = OpenAIClient(
         {
-            "ollama_url": "http://x",
-            "ollama_vision_model": "qwen3.5:9b",
-            "ollama_timeout_sec": 10,
-            "ollama_keep_alive": "5m",
+            "llm_url": "http://x",
+            "llm_vision_model": "qwen3.5:9b",
+            "llm_timeout_sec": 10,
         }
     )
     result = client.classify_image(image)
@@ -84,29 +83,24 @@ def test_classify_image_requires_valid_boxes(monkeypatch, tmp_path: Path):
 def test_classify_image_fails_on_invalid_boxes(monkeypatch, tmp_path: Path):
     image = tmp_path / "img.jpg"
     Image.new("RGB", (100, 100), color="white").save(image)
-    payload = {
-        "message": {
-            "content": json.dumps(
-                {
-                    "label": "idle",
-                    "confidence": 0.8,
-                    "notes": "worker seated",
-                    "boxes": [{"label": "person", "box": [0.1, 0.2, 0.3]}],
-                }
-            )
+    content = json.dumps(
+        {
+            "label": "idle",
+            "confidence": 0.8,
+            "notes": "worker seated",
+            "boxes": [{"label": "person", "box": [0.1, 0.2, 0.3]}],
         }
-    }
+    )
 
     monkeypatch.setattr(
         "factory_analytics.integrations.ollama.httpx.Client",
-        lambda *a, **k: DummyClient(payload),
+        lambda *a, **k: DummyClient(_openai_payload(content)),
     )
-    client = OllamaClient(
+    client = OpenAIClient(
         {
-            "ollama_url": "http://x",
-            "ollama_vision_model": "qwen3.5:9b",
-            "ollama_timeout_sec": 10,
-            "ollama_keep_alive": "5m",
+            "llm_url": "http://x",
+            "llm_vision_model": "qwen3.5:9b",
+            "llm_timeout_sec": 10,
         }
     )
     with pytest.raises(RuntimeError):
@@ -116,27 +110,22 @@ def test_classify_image_fails_on_invalid_boxes(monkeypatch, tmp_path: Path):
 def test_classify_group_image_rejects_html_article_payload(monkeypatch, tmp_path: Path):
     image = tmp_path / "group.jpg"
     Image.new("RGB", (100, 100), color="white").save(image)
-    payload = {
-        "message": {
-            "content": json.dumps(
-                {
-                    "type": "text/html",
-                    "data": "<div><a href='/products/2379'>The New Age of AI-Powered Productivity Tools</a></div>",
-                }
-            )
+    content = json.dumps(
+        {
+            "type": "text/html",
+            "data": "<div><a href='/products/2379'>The New Age of AI-Powered Productivity Tools</a></div>",
         }
-    }
+    )
 
     monkeypatch.setattr(
         "factory_analytics.integrations.ollama.httpx.Client",
-        lambda *a, **k: DummyClient(payload),
+        lambda *a, **k: DummyClient(_openai_payload(content)),
     )
-    client = OllamaClient(
+    client = OpenAIClient(
         {
-            "ollama_url": "http://x",
-            "ollama_vision_model": "qwen3.5:9b",
-            "ollama_timeout_sec": 10,
-            "ollama_keep_alive": "5m",
+            "llm_url": "http://x",
+            "llm_vision_model": "qwen3.5:9b",
+            "llm_timeout_sec": 10,
         }
     )
 
@@ -149,32 +138,27 @@ def test_classify_group_image_accepts_corner_coordinate_boxes(
 ):
     image = tmp_path / "group_boxes.jpg"
     Image.new("RGB", (100, 100), color="white").save(image)
-    payload = {
-        "message": {
-            "content": json.dumps(
-                {
-                    "label": "idle",
-                    "confidence": 0.8,
-                    "notes": "No people visible",
-                    "boxes": [
-                        {"label": "person", "box": [0.1, 0.2, 0.3, 0.4]},
-                        {"label": "person", "box": [0.36, 0.57, 0.45, 0.85]},
-                    ],
-                }
-            )
+    content = json.dumps(
+        {
+            "label": "idle",
+            "confidence": 0.8,
+            "notes": "No people visible",
+            "boxes": [
+                {"label": "person", "box": [0.1, 0.2, 0.3, 0.4]},
+                {"label": "person", "box": [0.36, 0.57, 0.45, 0.85]},
+            ],
         }
-    }
+    )
 
     monkeypatch.setattr(
         "factory_analytics.integrations.ollama.httpx.Client",
-        lambda *a, **k: DummyClient(payload),
+        lambda *a, **k: DummyClient(_openai_payload(content)),
     )
-    client = OllamaClient(
+    client = OpenAIClient(
         {
-            "ollama_url": "http://x",
-            "ollama_vision_model": "qwen3.5:9b",
-            "ollama_timeout_sec": 10,
-            "ollama_keep_alive": "5m",
+            "llm_url": "http://x",
+            "llm_vision_model": "qwen3.5:9b",
+            "llm_timeout_sec": 10,
         }
     )
 
@@ -188,20 +172,17 @@ def test_classify_group_image_accepts_missing_boxes_as_empty(
 ):
     image = tmp_path / "group_nobox.jpg"
     Image.new("RGB", (100, 100), color="white").save(image)
-    payload = {
-        "message": {"content": json.dumps({"label": "working", "confidence": 0.6})}
-    }
+    content = json.dumps({"label": "working", "confidence": 0.6})
 
     monkeypatch.setattr(
         "factory_analytics.integrations.ollama.httpx.Client",
-        lambda *a, **k: DummyClient(payload),
+        lambda *a, **k: DummyClient(_openai_payload(content)),
     )
-    client = OllamaClient(
+    client = OpenAIClient(
         {
-            "ollama_url": "http://x",
-            "ollama_vision_model": "qwen3.5:9b",
-            "ollama_timeout_sec": 10,
-            "ollama_keep_alive": "5m",
+            "llm_url": "http://x",
+            "llm_vision_model": "qwen3.5:9b",
+            "llm_timeout_sec": 10,
         }
     )
 
@@ -214,19 +195,17 @@ def test_classify_group_image_retries_after_malformed_json(monkeypatch, tmp_path
     image = tmp_path / "group_retry.jpg"
     Image.new("RGB", (100, 100), color="white").save(image)
     payloads = [
-        {"message": {"content": '{"Camera 1 (Top Left): ":[\n    -1.0]\n    \t}'}},
-        {
-            "message": {
-                "content": json.dumps(
-                    {
-                        "label": "idle",
-                        "confidence": 0.8,
-                        "notes": "retry ok",
-                        "boxes": [],
-                    }
-                )
-            }
-        },
+        _openai_payload('{"Camera 1 (Top Left): ":[\n    -1.0]\n    \t}'),
+        _openai_payload(
+            json.dumps(
+                {
+                    "label": "idle",
+                    "confidence": 0.8,
+                    "notes": "retry ok",
+                    "boxes": [],
+                }
+            )
+        ),
     ]
     client_instance = SequenceDummyClient(payloads)
 
@@ -234,12 +213,11 @@ def test_classify_group_image_retries_after_malformed_json(monkeypatch, tmp_path
         "factory_analytics.integrations.ollama.httpx.Client",
         lambda *a, **k: client_instance,
     )
-    client = OllamaClient(
+    client = OpenAIClient(
         {
-            "ollama_url": "http://x",
-            "ollama_vision_model": "qwen3.5:9b",
-            "ollama_timeout_sec": 10,
-            "ollama_keep_alive": "5m",
+            "llm_url": "http://x",
+            "llm_vision_model": "qwen3.5:9b",
+            "llm_timeout_sec": 10,
         }
     )
 

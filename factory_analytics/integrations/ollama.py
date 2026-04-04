@@ -10,8 +10,9 @@ from factory_analytics.logging_setup import setup_logging
 
 logger = setup_logging()
 
-DEFAULT_PROMPT = (
-    "You are a strict factory CCTV vision auditor. Analyze the provided image conservatively and only report what is directly visible. "
+SINGLE_CAMERA_PROMPT = (
+    "You are a strict factory CCTV vision auditor. Analyze the provided images conservatively and only report what is directly visible. "
+    "These frames were captured {seconds}s apart from the same camera.\n"
     "CRITICAL RULES:\n"
     "1. NEVER assume a person is present unless a human head, torso, limbs, or clear body shape is actually visible.\n"
     "2. NEVER mark 'sleeping' unless a clearly visible person is seen in a sleep-like posture.\n"
@@ -25,14 +26,17 @@ DEFAULT_PROMPT = (
     "Return STRICT JSON ONLY with these exact keys:\n"
     '{"label": "working|idle|sleeping|uncertain|stopped|sleep-suspect|timepass|operator_missing", "confidence": 0.0, "notes": "brief explanation", "boxes": []}\n'
     "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
-    "If no person visible, use label='operator_missing'. "
+    "If no person visible in any frame, use label='operator_missing'. "
     "Confidence must be a number from 0 to 1. "
     "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1. "
     "DO NOT include any text before or after the JSON. Return ONLY valid JSON."
 )
 
 GROUP_PROMPT = (
-    "You are a strict factory CCTV vision auditor. Analyze the provided image conservatively and only report what is directly visible. "
+    "You are a strict factory CCTV vision auditor. Analyze the provided images conservatively and only report what is directly visible. "
+    "Each image shows ALL cameras merged together for one moment in time. "
+    "These {count} frames were captured {seconds}s apart.\n"
+    "The labeled areas in each image show camera names for each section.\n"
     "CRITICAL RULES:\n"
     "1. NEVER assume a person is present unless a human head, torso, limbs, or clear body shape is actually visible.\n"
     "2. NEVER mark 'sleeping' unless a clearly visible person is seen in a sleep-like posture.\n"
@@ -43,12 +47,10 @@ GROUP_PROMPT = (
     "7. Be conservative. False positives are worse than false negatives.\n\n"
     "Common false positives in this factory: cloth bundles, sacks, chairs, machine handles, colored plastic rolls, shadows, reflections, stacked material. "
     "These must NOT be classified as people.\n\n"
-    "The top-left labeled area shows the camera/view name for each section. "
-    "Look specifically for people present or absent in each camera view.\n\n"
     "Return STRICT JSON ONLY with these exact keys:\n"
     '{"label": "working|idle|sleeping|uncertain|stopped|sleep-suspect|timepass|operator_missing", "confidence": 0.0, "notes": "brief explanation", "boxes": []}\n'
     "Allowed labels: working, idle, sleeping, uncertain, stopped, sleep-suspect, timepass, operator_missing. "
-    "If no person visible in any camera view, use label='operator_missing'. "
+    "If no person visible in any camera view across all frames, use label='operator_missing'. "
     "Confidence must be a number from 0 to 1. "
     "boxes must be an array of objects with label='person' and box=[x,y,width,height] normalized from 0 to 1. "
     "DO NOT include any text before or after the JSON. Return ONLY valid JSON."
@@ -106,45 +108,58 @@ def normalize_label(raw_label: str) -> str | None:
     return None
 
 
-class OllamaClient:
+class OpenAIClient:
     def __init__(self, settings: dict[str, Any]):
         self.settings = settings
-        self.base_url = (settings.get("ollama_url") or "http://127.0.0.1:11434").rstrip(
+        self.base_url = (settings.get("llm_url") or "http://127.0.0.1:11434").rstrip(
             "/"
         )
-        # Allow overriding via either DB settings or environment-provided defaults
-        self.model = settings.get("ollama_vision_model") or "qwen2.5-vl:7b"
-        self.timeout = int(settings.get("ollama_timeout_sec") or 120)
-        self.keep_alive = settings.get("ollama_keep_alive") or "5m"
-        self.enabled = bool(settings.get("ollama_enabled", True))
+        self.model = settings.get("llm_vision_model") or "qwen2.5-vl:7b"
+        self.timeout = int(settings.get("llm_timeout_sec") or 120)
+        self.enabled = bool(settings.get("llm_enabled", True))
+        self.api_key = settings.get("llm_api_key") or ""
 
     def _chat_url(self) -> str:
-        if self.base_url.endswith("/api"):
-            return f"{self.base_url}/chat"
-        return f"{self.base_url}/api/chat"
+        if self.base_url.endswith("/v1"):
+            return f"{self.base_url}/chat/completions"
+        return f"{self.base_url}/v1/chat/completions"
 
-    def _tags_url(self) -> str:
-        if self.base_url.endswith("/api"):
-            return f"{self.base_url}/tags"
-        return f"{self.base_url}/api/tags"
+    def _models_url(self) -> str:
+        if self.base_url.endswith("/v1"):
+            return f"{self.base_url}/models"
+        return f"{self.base_url}/v1/models"
 
     def health(self) -> dict[str, Any]:
         try:
-            with httpx.Client(timeout=20) as client:
-                r = client.get(self._tags_url())
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            with httpx.Client(timeout=20, headers=headers) as client:
+                r = client.get(self._models_url())
                 r.raise_for_status()
                 payload = r.json()
-                models = [m.get("name") for m in payload.get("models", [])]
+                models = [m.get("id") for m in payload.get("data", [])]
                 return {"ok": True, "models": models}
         except Exception as exc:
-            logger.exception("Ollama health failed")
+            logger.exception("OpenAI health failed")
             return {"ok": False, "message": str(exc)}
 
     def _parse_classification_content(
         self, content: str, *, group_mode: bool
     ) -> dict[str, Any]:
+        text = content.strip()
+        # Extract JSON from mixed response (model may include reasoning text)
+        if not text.startswith("{"):
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                text = text[start : end + 1]
+            else:
+                raise RuntimeError(
+                    f"Model {self.model} did not return JSON: {content[:300]}"
+                )
         try:
-            parsed = json.loads(content)
+            parsed = json.loads(text)
             if group_mode and (
                 parsed.get("type") == "text/html"
                 or "<html" in str(parsed.get("data", "")).lower()
@@ -203,7 +218,6 @@ class OllamaClient:
                         self.model,
                     )
                     continue
-                # Take first 4 values and coerce to float
                 clean_box = []
                 skip_box = False
                 for value in box[:4]:
@@ -220,9 +234,7 @@ class OllamaClient:
                     clean_box.append(num)
                 if skip_box:
                     continue
-                # Normalize pixel coordinates to 0-1 range
                 if any(v > 1.0 for v in clean_box):
-                    # Looks like pixel coordinates - attempt normalization
                     max_val = max(clean_box)
                     if max_val > 0:
                         clean_box = [v / max_val for v in clean_box]
@@ -230,7 +242,6 @@ class OllamaClient:
                             "Normalized box coordinates from pixel values (max=%.1f)",
                             max_val,
                         )
-                # Clamp to 0-1
                 clean_box = [max(0.0, min(1.0, v)) for v in clean_box]
                 item["box"] = clean_box
             return {
@@ -244,42 +255,89 @@ class OllamaClient:
                 f"Model {self.model} did not return JSON: {content[:300]}"
             ) from exc
 
-    def _classify_with_prompt(
-        self, image_path: Path, prompt: str, *, group_mode: bool
-    ) -> dict[str, Any]:
+    def _send_request(self, prompt: str, image_paths: list[Path]) -> tuple[str, Any]:
         if not self.enabled:
-            raise RuntimeError("Ollama disabled in settings")
-        image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+            raise RuntimeError("LLM client disabled in settings")
+        timeout = httpx.Timeout(connect=5, read=self.timeout, write=10, pool=5)
+        headers = {"Connection": "keep-alive"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        content_parts: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+        for img_path in image_paths:
+            image_b64 = base64.b64encode(img_path.read_bytes()).decode("utf-8")
+            content_parts.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                }
+            )
         payload = {
             "model": self.model,
             "stream": False,
-            "format": "json",
-            "keep_alive": self.keep_alive,
-            "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a JSON-only API. Return ONLY valid JSON. No reasoning, no explanation, no text outside JSON.",
+                },
+                {"role": "user", "content": content_parts},
+            ],
         }
-        timeout = httpx.Timeout(connect=5, read=self.timeout, write=10, pool=5)
-        headers = {"Connection": "keep-alive"}
         with httpx.Client(timeout=timeout, headers=headers) as client:
             r = client.post(self._chat_url(), json=payload)
             r.raise_for_status()
             data = r.json()
-        content = (((data.get("message") or {}).get("content")) or "").strip()
+        choices = data.get("choices") or []
+        content = ""
+        if choices:
+            content = (choices[0].get("message") or {}).get("content", "") or ""
         if not content:
             raise RuntimeError(f"Model {self.model} returned empty response")
-        result = self._parse_classification_content(content, group_mode=group_mode)
+        return content, data
+
+    def classify_images(
+        self,
+        image_paths: list[Path],
+        prompt: str | None = None,
+        *,
+        seconds_apart: int = 1,
+    ) -> dict[str, Any]:
+        if not image_paths:
+            raise RuntimeError("No images provided for classification")
+        if len(image_paths) == 1:
+            effective_prompt = prompt or SINGLE_CAMERA_PROMPT
+        else:
+            effective_prompt = (prompt or SINGLE_CAMERA_PROMPT).replace(
+                "{seconds}", str(seconds_apart)
+            )
+        content, data = self._send_request(effective_prompt, image_paths)
+        result = self._parse_classification_content(content, group_mode=False)
         result["raw"] = data
+        result["frame_count"] = len(image_paths)
+        return result
+
+    def classify_group_images(
+        self, image_paths: list[Path], *, seconds_apart: int = 1, camera_count: int = 1
+    ) -> dict[str, Any]:
+        if not image_paths:
+            raise RuntimeError("No images provided for group classification")
+        prompt = GROUP_PROMPT.replace("{count}", str(len(image_paths))).replace(
+            "{seconds}", str(seconds_apart)
+        )
+        content, data = self._send_request(prompt, image_paths)
+        result = self._parse_classification_content(content, group_mode=True)
+        result["raw"] = data
+        result["frame_count"] = len(image_paths)
+        result["camera_count"] = camera_count
         return result
 
     def classify_image(
         self, image_path: Path, prompt: str | None = None
     ) -> dict[str, Any]:
-        return self._classify_with_prompt(
-            image_path, prompt or DEFAULT_PROMPT, group_mode=False
-        )
+        return self.classify_images([image_path], prompt)
 
     def classify_group_image(self, image_path: Path) -> dict[str, Any]:
         try:
-            return self._classify_with_prompt(image_path, GROUP_PROMPT, group_mode=True)
+            return self.classify_group_images([image_path])
         except RuntimeError as exc:
             if (
                 "html garbage" not in str(exc).lower()
@@ -291,4 +349,4 @@ class OllamaClient:
             logger.warning(
                 "Group analysis received garbage response, retrying once with strict prompt"
             )
-            return self._classify_with_prompt(image_path, GROUP_PROMPT, group_mode=True)
+            return self.classify_group_images([image_path])

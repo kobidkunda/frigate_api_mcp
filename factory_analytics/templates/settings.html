@@ -44,17 +44,17 @@
 </div>
 </div>
 </section>
-<!-- Ollama Configuration -->
+<!-- LLM AI Configuration -->
 <section class="bg-surface-container-low p-8 rounded-xl shadow-2xl transition-all border border-outline-variant/5 relative overflow-hidden">
 <div class="flex items-center justify-between mb-8">
 <div class="flex items-center gap-3">
 <span class="material-symbols-outlined text-tertiary">psychology</span>
-<h2 class="font-headline text-xl font-bold text-tertiary">Ollama AI Configuration</h2>
+<h2 class="font-headline text-xl font-bold text-tertiary">LLM AI Configuration (OpenAI-Compatible)</h2>
 </div>
 <div class="flex items-center gap-4">
 <span class="text-xs font-label uppercase text-outline">System Active</span>
 <label class="relative inline-flex items-center cursor-pointer">
-<input type="checkbox" name="ollama_enabled" value="true" class="sr-only peer">
+<input type="checkbox" name="llm_enabled" value="true" class="sr-only peer">
 <div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-tertiary"></div>
 </label>
 </div>
@@ -62,24 +62,24 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div class="flex flex-col gap-2">
 <label class="font-label text-xs uppercase tracking-widest text-outline">API Endpoint</label>
-<input name="ollama_url" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="text" placeholder="http://localhost:11434/api"/>
+<input name="llm_url" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="text" placeholder="http://localhost:11434"/>
 </div>
 <div class="flex flex-col gap-2">
 <label class="font-label text-xs uppercase tracking-widest text-outline">Vision Model</label>
-<input name="ollama_vision_model" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" placeholder="qwen2.5-vl:7b">
+<input name="llm_vision_model" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" placeholder="qwen2.5-vl:7b">
 </div>
 <div class="flex flex-col gap-2">
 <label class="font-label text-xs uppercase tracking-widest text-outline">Timeout (sec)</label>
-<input name="ollama_timeout_sec" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="number" min="10"/>
+<input name="llm_timeout_sec" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="number" min="10"/>
 </div>
 <div class="flex flex-col gap-2">
-<label class="font-label text-xs uppercase tracking-widest text-outline">Keep Alive</label>
-<input name="ollama_keep_alive" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="text" placeholder="5m"/>
+<label class="font-label text-xs uppercase tracking-widest text-outline">API Key (optional)</label>
+<input name="llm_api_key" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="password" placeholder="sk-..." autocomplete="new-password"/>
 </div>
 </div>
 <div class="mt-8 flex justify-between items-center">
-<div id="ollama-test-result" class="text-sm text-on-surface-variant"></div>
-<button type="button" id="testOllamaBtn" class="flex items-center gap-2 px-6 py-2 border border-outline-variant/20 rounded-md text-on-surface hover:bg-surface-container-highest transition-all text-sm font-label uppercase tracking-widest">
+<div id="llm-test-result" class="text-sm text-on-surface-variant"></div>
+<button type="button" id="testLlmBtn" class="flex items-center gap-2 px-6 py-2 border border-outline-variant/20 rounded-md text-on-surface hover:bg-surface-container-highest transition-all text-sm font-label uppercase tracking-widest">
 <span class="material-symbols-outlined text-sm">bolt</span>
                                 Test Connection
                             </button>
@@ -132,8 +132,11 @@
     <label class="font-label text-xs uppercase tracking-widest text-outline">Evidence Retention (days)</label>
     <input name="evidence_retention_days" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="number" min="1" max="365" value="30" placeholder="30"/>
     <p class="text-xs text-on-surface-variant font-label">Delete evidence photos older than X days. Database records are preserved. Set to 0 to disable.</p>
-    </div>
-    </div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-widest text-outline">API Key (optional)</label>
+<input name="llm_api_key" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="password" placeholder="sk-..." autocomplete="new-password"/>
+</div>
+</div>
 </section>
 <!-- Analysis & General Settings -->
 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -189,9 +192,9 @@
     const values = Object.fromEntries(fd.entries()); 
     values.frigate_verify_tls = !!fd.get('frigate_verify_tls'); 
     values.scheduler_enabled = !!fd.get('scheduler_enabled'); 
-    values.ollama_enabled = !!fd.get('ollama_enabled'); 
+    values.llm_enabled = !!fd.get('llm_enabled'); 
     values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300); 
-    values.ollama_timeout_sec = Number(values.ollama_timeout_sec || 120); 
+    values.llm_timeout_sec = Number(values.llm_timeout_sec || 120); 
     await fetch('/api/settings', { 
       method: 'PUT', 
       headers: { 'Content-Type': 'application/json' }, 
@@ -219,21 +222,22 @@
     }); 
   });
 
-  document.getElementById('testOllamaBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('testOllamaBtn');
-    const res = document.getElementById('ollama-test-result');
+  document.getElementById('testLlmBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('testLlmBtn');
+    const res = document.getElementById('llm-test-result');
     btn.disabled = true;
     res.innerHTML = 'Testing...';
     try {
       const response = await fetch('/api/health');
       const data = await response.json();
-      if (data.ollama_status === 'ok') {
-        res.innerHTML = '<span class="text-tertiary">Connection Successful</span>';
+      const llm = data.ollama || {};
+      if (llm.ok) {
+        res.innerHTML = `<span class="text-tertiary">Connection Successful — Models: ${llm.models ? llm.models.join(', ') : 'unknown'}</span>`;
       } else {
-        res.innerHTML = `<span class="text-error">Connection Failed: ${data.ollama_status}</span>`;
+        res.innerHTML = `<span class="text-error">Connection Failed: ${llm.message || 'unknown error'}</span>`;
       }
     } catch (err) {
-      res.innerHTML = '<span class="text-error">Connection Failed</span>';
+      res.innerHTML = `<span class="text-error">Connection Failed: ${err.message || String(err)}</span>`;
     } finally {
       btn.disabled = false;
     }

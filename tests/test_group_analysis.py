@@ -238,7 +238,7 @@ def test_group_run_timeout_marks_job_failed(monkeypatch):
         raise RuntimeError("group analysis timeout")
 
     monkeypatch.setattr(
-        "factory_analytics.integrations.ollama.OllamaClient.classify_group_image",
+        "factory_analytics.integrations.ollama.OpenAIClient.classify_group_image",
         raise_timeout,
     )
 

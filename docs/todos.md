@@ -22,6 +22,10 @@
 ## Blocked
 
 ## Done
+- [x] Switch Ollama to OpenAI-compatible API mode & fix test button
+  - Done: 2026-04-04
+  - Related: docs/implementation/2026-04-04-ollama-openai-api-mode.md
+  - Features: Added ollama_api_mode setting (default: openai), fixed test button response parsing, added API mode dropdown in settings UI
 - [x] Redesign Control Center page with comprehensive OpenCode usage guide
 - Done: 2026-04-01
 - Related: factory_analytics/templates/control_center.html
