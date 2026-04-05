@@ -733,6 +733,7 @@ class Database:
                 item["raw_result"] = json.loads(raw_result) if raw_result else {}
                 payload_json = item.get("payload_json")
                 item["payload_json"] = json.loads(payload_json) if payload_json else {}
+                item["evidence_frames"] = item["raw_result"].get("evidence_frames", [])
                 item["group_name"] = item["raw_result"].get("group_name")
                 item["group_type"] = item["raw_result"].get("group_type")
                 item["group_id"] = item["raw_result"].get("group_id")

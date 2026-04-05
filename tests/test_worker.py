@@ -200,6 +200,46 @@ def test_list_segments_paginated_exposes_model_used(tmp_path: Path):
     assert result["items"][0]["model_used"] == "vision-alpha"
 
 
+def test_list_segments_exposes_evidence_frames(tmp_path: Path):
+    db = Database(path=tmp_path / "segments_frames.db")
+    camera = db.upsert_camera("cam_frames", "Frames Cam")
+    db.update_camera(camera["id"], {"enabled": True})
+
+    job = db.schedule_job(camera["id"], payload={"source": "test"})
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE jobs SET raw_result = ? WHERE id = ?",
+            (
+                json.dumps(
+                    {
+                        "evidence_frames": [
+                            "data/evidence/frames/cam_frames/frame_0.jpg",
+                            "data/evidence/frames/cam_frames/frame_1.jpg",
+                        ]
+                    }
+                ),
+                job["id"],
+            ),
+        )
+
+    db.create_segment(
+        job_id=job["id"],
+        camera_id=camera["id"],
+        start_ts="2026-04-05T12:35:00",
+        end_ts="2026-04-05T12:36:00",
+        label="working",
+        confidence=0.91,
+        evidence_path="data/evidence/frames/cam_frames/frame_0.jpg",
+    )
+
+    result = db.list_segments(limit=10)
+    assert len(result) == 1
+    assert result[0]["evidence_frames"] == [
+        "data/evidence/frames/cam_frames/frame_0.jpg",
+        "data/evidence/frames/cam_frames/frame_1.jpg",
+    ]
+
+
 def test_report_daily_recent_segments_expose_model_used(tmp_path: Path):
     """report_daily recent_segments include model_used from the associated job."""
     db = Database(path=tmp_path / "report.db")
