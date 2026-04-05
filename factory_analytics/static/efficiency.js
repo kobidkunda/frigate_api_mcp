@@ -526,7 +526,7 @@
           job_id: hist.job_id || seg.job_id || '',
         };
       } catch (_) {
-        return { ...seg, model_used: '', evidence: null, jobId: seg.job_id || '' };
+        return { ...seg, model_used: '', evidence: null, job_id: seg.job_id || '' };
       }
     }));
 
