@@ -132,10 +132,6 @@
     <label class="font-label text-xs uppercase tracking-widest text-outline">Evidence Retention (days)</label>
     <input name="evidence_retention_days" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="number" min="1" max="365" value="30" placeholder="30"/>
     <p class="text-xs text-on-surface-variant font-label">Delete evidence photos older than X days. Database records are preserved. Set to 0 to disable.</p>
-<div class="flex flex-col gap-2">
-<label class="font-label text-xs uppercase tracking-widest text-outline">API Key (optional)</label>
-<input name="llm_api_key" class="bg-surface-container-lowest border-0 border-b border-outline-variant focus:border-primary focus:ring-0 text-on-surface py-3 transition-all font-body" type="password" placeholder="sk-..." autocomplete="new-password"/>
-</div>
 </div>
 </section>
 <!-- Analysis & General Settings -->
@@ -225,14 +221,26 @@
   document.getElementById('testLlmBtn').addEventListener('click', async () => {
     const btn = document.getElementById('testLlmBtn');
     const res = document.getElementById('llm-test-result');
+    const form = document.getElementById('settingsForm');
     btn.disabled = true;
     res.innerHTML = 'Testing...';
     try {
-      const response = await fetch('/api/health');
-      const data = await response.json();
-      const llm = data.ollama || {};
+      const fd = new FormData(form);
+      const values = Object.fromEntries(fd.entries());
+      values.frigate_verify_tls = !!fd.get('frigate_verify_tls');
+      values.scheduler_enabled = !!fd.get('scheduler_enabled');
+      values.llm_enabled = !!fd.get('llm_enabled');
+      values.analysis_interval_seconds = Number(values.analysis_interval_seconds || 300);
+      values.llm_timeout_sec = Number(values.llm_timeout_sec || 120);
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values })
+      });
+      const response = await fetch('/api/settings/ollama/test', { method: 'POST' });
+      const llm = await response.json();
       if (llm.ok) {
-        res.innerHTML = `<span class="text-tertiary">Connection Successful — Models: ${llm.models ? llm.models.join(', ') : 'unknown'}</span>`;
+        res.innerHTML = `<span class="text-tertiary">Connection Successful — ${llm.model || 'unknown model'}</span>`;
       } else {
         res.innerHTML = `<span class="text-error">Connection Failed: ${llm.message || 'unknown error'}</span>`;
       }
