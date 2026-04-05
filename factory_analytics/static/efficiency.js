@@ -65,7 +65,7 @@
     });
     document.addEventListener('click', (e) => {
       const popover = el('cellDetailPopover');
-      if (popover && !popover.contains(e.target) && !e.target.closest('.hm-sq')) {
+      if (popover && !popover.contains(e.target) && !e.target.closest('.hm-sq') && !e.target.closest('.hm-cell')) {
         hidePopover();
       }
     });
@@ -508,7 +508,7 @@
     // Enrich each segment from /api/history/segments/{id}
     const enriched = await Promise.all(segments.map(async (seg) => {
       const segId = seg.segment_id || seg.id || '';
-      if (!segId) return { ...seg, model_used: '', evidence: null, jobId: seg.job_id || '' };
+      if (!segId) return { ...seg, model_used: '', evidence: null, job_id: seg.job_id || '' };
       try {
         const [histResp, evResp] = await Promise.all([
           fetch(`/api/history/segments/${segId}`).catch(() => ({ ok: false })),
