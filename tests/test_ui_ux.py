@@ -173,6 +173,14 @@ def test_daily_grid_popover_uses_per_cell_camera():
     assert "segs[0].camera_id" in eff_js
 
 
+def test_job_details_surface_shows_model_metadata():
+    """Job details modal must surface model_used in the info block."""
+    jobs_html = Path("factory_analytics/templates/jobs.html").read_text()
+    assert "Model" in jobs_html
+    assert "modal-job-info" in jobs_html
+    assert "job.model_used" in jobs_html or "model_used" in jobs_html
+
+
 def test_report_surfaces_show_model_name():
     history_html = Path("factory_analytics/templates/history.html").read_text()
     app_js = Path("factory_analytics/static/app.js").read_text()

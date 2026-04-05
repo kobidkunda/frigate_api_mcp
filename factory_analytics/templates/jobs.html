@@ -346,6 +346,10 @@ async function showJobDetails(jobId) {
                 <div class="text-sm font-medium">${job.job_type || 'analysis'}</div>
             </div>
             <div class="bg-surface-container-lowest p-3 rounded-lg">
+                <div class="text-xs text-outline font-label uppercase mb-1">Model</div>
+                <div class="text-sm font-medium font-mono">${job.model_used || '-'}</div>
+            </div>
+            <div class="bg-surface-container-lowest p-3 rounded-lg">
                 <div class="text-xs text-outline font-label uppercase mb-1">Duration</div>
                 <div class="text-sm font-medium">${calcDuration(job.started_at, job.finished_at)}</div>
             </div>
