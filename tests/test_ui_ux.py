@@ -163,3 +163,6 @@ def test_report_surfaces_show_model_name():
     assert "model_used" in history_html
     assert "model_used" in app_js
     assert "reportView" in dashboard_html
+    # Verify dashboard report surface renders model name
+    assert "reportView" in app_js
+    assert "Model:" in app_js
