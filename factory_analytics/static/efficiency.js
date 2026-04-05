@@ -369,8 +369,9 @@
       cell.addEventListener('click', (e) => {
         e.stopPropagation();
         const segs = _cellSegmentsMap[cell.dataset.cellKey];
+        const segCamId = segs && segs.length > 0 ? segs[0].camera_id : '';
         showPopover(e, {
-          camera: camIds.length > 0 ? cameraData[camIds[0]].label : '',
+          camera: segCamId in cameraData ? cameraData[segCamId].label : '',
           segments: segs || [],
         });
       });
@@ -471,7 +472,6 @@
   }
 
   // ============ POPOVER ============
-  let _popoverSegmentsRef = [];
   async function showPopover(event, meta) {
     const popover = document.getElementById('cellDetailPopover');
     const color = LABEL_COLORS[meta.label] || '#888';
@@ -488,7 +488,6 @@
     segmentsContainer.innerHTML = '<div class="text-xs text-on-surface-variant text-center py-4">Loading segments...</div>';
 
     if (meta.segments && meta.segments.length > 0) {
-      _popoverSegmentsRef = meta.segments;
       await enrichSegments(segmentsContainer, meta.segments);
     } else {
       segmentsContainer.innerHTML = '<div class="text-xs text-on-surface-variant text-center py-4">No segments to show</div>';

@@ -164,6 +164,15 @@ def test_efficiency_drilldown_markup_includes_model_and_job_detail_hooks():
     assert "No image" in eff_js
 
 
+def test_daily_grid_popover_uses_per_cell_camera():
+    """Popover must show the clicked cell's camera, not the first camera."""
+    eff_js = Path("factory_analytics/static/efficiency.js").read_text()
+    # Must NOT hardcode the first camera via cameraData[camIds[0]]
+    assert "cameraData[camIds[0]]" not in eff_js
+    # Should derive camera_id from the cell's own segment data
+    assert "segs[0].camera_id" in eff_js
+
+
 def test_report_surfaces_show_model_name():
     history_html = Path("factory_analytics/templates/history.html").read_text()
     app_js = Path("factory_analytics/static/app.js").read_text()
