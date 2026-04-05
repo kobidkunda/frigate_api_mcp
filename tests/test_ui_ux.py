@@ -173,12 +173,24 @@ def test_daily_grid_popover_uses_per_cell_camera():
     assert "segs[0].camera_id" in eff_js
 
 
-def test_job_details_surface_shows_model_metadata():
-    """Job details modal must surface model_used in the info block."""
+def test_job_details_modal_surface_renders_model_metadata_card():
+    """Job details modal info block must render model_used in a dedicated card.
+
+    Asserts on the exact infoHtml fragment that showJobDetails() injects into
+    #modal-job-info -- something the parent commit's infoHtml did NOT contain.
+    """
     jobs_html = Path("factory_analytics/templates/jobs.html").read_text()
-    assert "Model" in jobs_html
-    assert "modal-job-info" in jobs_html
-    assert "job.model_used" in jobs_html or "model_used" in jobs_html
+
+    # The modal model card lives inside showJobDetails()'s infoHtml template.
+    # The parent commit's infoHtml only had Camera / Status / Type / Duration.
+    # The combined label+value fragment below is unique to that modal card:
+    #   uppercase mb-1">Model</div> ... font-mono">${job.model_used
+    assert 'uppercase mb-1">Model</div>' in jobs_html, (
+        "modal info block should have Model label card"
+    )
+    assert 'font-mono">' in jobs_html and '${job.model_used' in jobs_html, (
+        "modal info block should render model_used value"
+    )
 
 
 def test_report_surfaces_show_model_name():
