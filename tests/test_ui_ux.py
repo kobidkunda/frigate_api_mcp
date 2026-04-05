@@ -145,3 +145,21 @@ def test_history_template_uses_evidence_frames_and_single_init_hook():
 def test_photos_js_avoids_inline_segment_json_onclick():
     source = Path("factory_analytics/static/photos.js").read_text()
     assert "JSON.stringify(p).replace" not in source
+
+
+def test_photos_cards_and_modal_show_model_name():
+    photos_js = Path("factory_analytics/static/photos.js").read_text()
+    photos_html = Path("factory_analytics/templates/photos.html").read_text()
+    assert "Model:" in photos_js
+    assert "p.model_used" in photos_js
+    assert "modalModel" in photos_html
+
+
+def test_report_surfaces_show_model_name():
+    history_html = Path("factory_analytics/templates/history.html").read_text()
+    app_js = Path("factory_analytics/static/app.js").read_text()
+    dashboard_html = Path("factory_analytics/templates/dashboard.html").read_text()
+    assert "Model" in history_html
+    assert "model_used" in history_html
+    assert "model_used" in app_js
+    assert "reportView" in dashboard_html

@@ -258,6 +258,7 @@ async function loadReport(){
       </div>
       <div class="text-[8px] text-outline mt-1 uppercase font-label">${(report.recent_segments || []).length} active events detected</div>
     </div>
+    ${(report.recent_segments && report.recent_segments.length > 0) ? `<div class="mt-3 pt-2 border-t border-outline-variant/10"><span class="block text-[10px] text-outline uppercase font-label mb-1">Model: ${report.recent_segments[0].model_used || '-'}</span></div>` : ''}
   `; 
 }
 async function loadLog(name){ const data=await api(`/api/logs/tail?name=${name}`); const el = document.getElementById('logView'); if(!el) return; el.textContent = data.content || ''; }

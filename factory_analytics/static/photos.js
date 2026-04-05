@@ -41,6 +41,7 @@
         modalGroups: document.getElementById('modalGroups'),
         modalTemporal: document.getElementById('modalTemporal'),
         modalDuration: document.getElementById('modalDuration'),
+        modalModel: document.getElementById('modalModel'),
         modalConfidence: document.getElementById('modalConfidence'),
         modalNotes: document.getElementById('modalNotes'),
         modalDetailsLink: document.getElementById('modalDetailsLink'),
@@ -153,6 +154,7 @@
                     <div class="flex items-center gap-3 text-xs text-on-surface-variant">
                         <span>Conf: ${confidence}%</span>
                         <span>${duration}</span>
+                        <span>Model: ${p.model_used || '-'}</span>
                     </div>
                     ${p.notes ? `<p class="text-xs text-on-surface-variant line-clamp-2 mt-2">${p.notes}</p>` : ''}
                 </div>
@@ -316,6 +318,7 @@
         elements.modalTemporal.textContent = formatTs(photo.start_ts) + ' - ' + formatTs(photo.end_ts);
         elements.modalDuration.textContent = formatDuration(photo.duration_seconds);
         elements.modalConfidence.textContent = Math.round((photo.confidence || 0) * 100) + '%';
+        elements.modalModel.textContent = photo.model_used || '-';
         elements.modalNotes.textContent = photo.notes || 'No additional notes available.';
         elements.modalDetailsLink.href = '/history?segment=' + photo.id;
 
