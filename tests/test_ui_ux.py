@@ -155,6 +155,15 @@ def test_photos_cards_and_modal_show_model_name():
     assert "modalModel" in photos_html
 
 
+def test_efficiency_drilldown_markup_includes_model_and_job_detail_hooks():
+    eff_html = Path("factory_analytics/templates/efficiency.html").read_text()
+    eff_js = Path("factory_analytics/static/efficiency.js").read_text()
+    assert "popoverSegments" in eff_html
+    assert "Open Job Details" in eff_js
+    assert "model_used" in eff_js
+    assert "No image" in eff_js
+
+
 def test_report_surfaces_show_model_name():
     history_html = Path("factory_analytics/templates/history.html").read_text()
     app_js = Path("factory_analytics/static/app.js").read_text()
