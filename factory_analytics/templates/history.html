@@ -60,6 +60,7 @@
                     <tr class="bg-surface-container text-outline text-[10px] uppercase tracking-[0.2em] font-label border-b border-outline-variant/10">
                         <th class="px-6 py-4 font-semibold">SEG_ID</th>
                         <th class="px-6 py-4 font-semibold">Camera Node</th>
+                        <th class="px-6 py-4 font-semibold">Model</th>
                         <th class="px-6 py-4 font-semibold">Classification &amp; Metadata</th>
                         <th class="px-6 py-4 font-semibold text-center">Conf.</th>
                         <th class="px-6 py-4 font-semibold">Temporal Span</th>
@@ -207,6 +208,9 @@
                 <td class="px-6 py-6 font-label text-sm text-primary">#SEG-${s.id}</td>
                 <td class="px-6 py-6">
                     <div class="text-sm font-medium text-on-surface">${s.camera_name || 'N/A'}</div>
+                </td>
+                <td class="px-6 py-6">
+                    <div class="text-xs font-label text-on-surface-variant">${s.model_used || '-'}</div>
                 </td>
                 <td class="px-6 py-6">
                     <div class="flex items-center gap-2 mb-1">

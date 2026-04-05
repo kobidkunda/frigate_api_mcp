@@ -18,6 +18,14 @@ from factory_analytics.config import (
     SCHEDULER_ENABLED,
     PUBLIC_BASE_URL,
 )
+
+# Reusable SQL snippet for extracting the model used from a job (alias j).
+MODEL_USED_SQL = (
+    "COALESCE(json_extract(j.raw_result, '$.raw.model'),"
+    " json_extract(j.raw_result, '$.model'),"
+    " json_extract(j.payload_json, '$.model'),"
+    " json_extract(j.payload_json, '$.llm_vision_model')) AS model_used"
+)
 from factory_analytics.logging_setup import setup_logging
 
 logger = setup_logging()
@@ -607,7 +615,7 @@ class Database:
             ).fetchone()[0]
             rows = conn.execute(
                 f"""SELECT j.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
-                          COALESCE(json_extract(j.raw_result, '$.raw.model'), json_extract(j.raw_result, '$.model'), json_extract(j.payload_json, '$.model'), json_extract(j.payload_json, '$.llm_vision_model')) AS model_used
+                          {MODEL_USED_SQL}
                    FROM jobs j JOIN cameras c ON c.id = j.camera_id{where}
                    ORDER BY {order_col} {order_dir} LIMIT ? OFFSET ?""",
                 (*params, page_size, offset),
@@ -725,6 +733,7 @@ class Database:
                 item["raw_result"] = json.loads(raw_result) if raw_result else {}
                 payload_json = item.get("payload_json")
                 item["payload_json"] = json.loads(payload_json) if payload_json else {}
+                item["evidence_frames"] = item["raw_result"].get("evidence_frames", [])
                 item["group_name"] = item["raw_result"].get("group_name")
                 item["group_type"] = item["raw_result"].get("group_type")
                 item["group_id"] = item["raw_result"].get("group_id")
@@ -781,7 +790,8 @@ class Database:
             ).fetchone()[0]
             rows = conn.execute(
                 f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
-                          j.job_type, j.raw_result, j.payload_json
+                          j.job_type, j.raw_result, j.payload_json,
+                          {MODEL_USED_SQL}
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
                    LEFT JOIN jobs j ON j.id = s.job_id{where}
@@ -1089,7 +1099,11 @@ class Database:
                 (day,),
             ).fetchall()
             segments = conn.execute(
-                """SELECT s.*, c.name AS camera_name FROM segments s JOIN cameras c ON c.id=s.camera_id
+                f"""SELECT s.*, c.name AS camera_name,
+                          {MODEL_USED_SQL}
+                   FROM segments s
+                   JOIN cameras c ON c.id=s.camera_id
+                   LEFT JOIN jobs j ON j.id = s.job_id
                    WHERE substr(s.start_ts,1,10)=? ORDER BY s.id DESC LIMIT 20""",
                 (day,),
             ).fetchall()

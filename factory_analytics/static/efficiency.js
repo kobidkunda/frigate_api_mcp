@@ -51,10 +51,13 @@
     el('prevPage').addEventListener('click', () => changePage(-1));
     el('nextPage').addEventListener('click', () => changePage(1));
     el('popoverClose').addEventListener('click', hidePopover);
-    el('popoverDetails').addEventListener('click', (e) => {
-      e.preventDefault();
-      const segId = el('popoverDetails').dataset.segmentId;
-      if (segId) showSegmentModal(segId);
+    // Delegated click handler for segment job-action buttons
+    el('popoverSegments').addEventListener('click', (e) => {
+      const jobBtn = e.target.closest('[data-job-id]');
+      if (jobBtn) {
+        e.preventDefault();
+        window.open(`/jobs?job=${jobBtn.dataset.jobId}`, '_blank');
+      }
     });
     el('modalClose').addEventListener('click', hideSegmentModal);
     el('segmentModal').addEventListener('click', (e) => {
@@ -62,7 +65,7 @@
     });
     document.addEventListener('click', (e) => {
       const popover = el('cellDetailPopover');
-      if (popover && !popover.contains(e.target) && !e.target.closest('.hm-sq')) {
+      if (popover && !popover.contains(e.target) && !e.target.closest('.hm-sq') && !e.target.closest('.hm-cell')) {
         hidePopover();
       }
     });
@@ -264,6 +267,7 @@
   }
 
   // ============ DAILY GRID ============
+  let _cellSegmentsMap = {};
   function buildDailyGrid(data, groupCameras) {
     const container = document.getElementById('dailyGrid');
     document.getElementById('dailyGridView').classList.remove('hidden');
@@ -278,6 +282,7 @@
 
     // Group by camera -> hour
     const cameraData = {};
+    _cellSegmentsMap = {};
     rows.forEach(r => {
       if (!cameraData[r.camera_id]) {
         const gc = groupCameras.find(c => c.id === r.camera_id);
@@ -330,14 +335,16 @@
         if (segments.length === 0) {
           html += `<td style="padding:0;background:${cellBg};${borderStyle}"></td>`;
         } else {
+          const cellKey = `${camId}-${h}`;
+          _cellSegmentsMap[cellKey] = segments;
           html += `<td style="padding:2px;background:${cellBg};${borderStyle};vertical-align:top">`;
-          html += `<div style="display:flex;flex-wrap:wrap;gap:${GP}px">`;
+          html += `<div class="hm-cell" data-cell-key="${cellKey}" style="display:flex;flex-wrap:wrap;gap:${GP}px;cursor:pointer">`;
           segments.forEach(seg => {
             const color = LABEL_COLORS[seg.label] || LABEL_COLORS.uncertain;
             const conf = Math.round((seg.confidence || 0) * 100);
             const name = STATUS_LABELS[seg.label] || seg.label;
             const segId = seg.segment_id || seg.id || '';
-            html += `<div class="hm-sq" style="width:${SQ}px;height:${SQ}px;border-radius:2px;background:${color};cursor:pointer;transition:transform 0.1s,box-shadow 0.1s" data-cam="${cam.label}" data-label="${seg.label}" data-confidence="${conf}" data-start="${seg.start_ts}" data-end="${seg.end_ts}" data-duration="${seg.duration_minutes}" data-seg-id="${segId}" title="${name} ${conf}%"></div>`;
+            html += `<div class="hm-sq" style="width:${SQ}px;height:${SQ}px;border-radius:2px;background:${color};transition:transform 0.1s,box-shadow 0.1s" data-cam="${cam.label}" data-label="${seg.label}" data-confidence="${conf}" data-start="${seg.start_ts}" data-end="${seg.end_ts}" data-duration="${seg.duration_minutes}" data-seg-id="${segId}" title="${name} ${conf}%"></div>`;
           });
           html += '</div></td>';
         }
@@ -357,17 +364,15 @@
 
     container.innerHTML = html;
 
-    // Click handlers
-    container.querySelectorAll('.hm-sq').forEach(sq => {
-      sq.addEventListener('click', (e) => {
+    // Click handlers — pass the entire cell segments list
+    container.querySelectorAll('.hm-cell').forEach(cell => {
+      cell.addEventListener('click', (e) => {
         e.stopPropagation();
+        const segs = _cellSegmentsMap[cell.dataset.cellKey];
+        const segCamId = segs && segs.length > 0 ? segs[0].camera_id : '';
         showPopover(e, {
-          camera: sq.dataset.cam,
-          label: sq.dataset.label,
-          confidence: parseFloat(sq.dataset.confidence),
-          minutes: parseFloat(sq.dataset.duration) || 0,
-          time: new Date(sq.dataset.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + ' - ' + new Date(sq.dataset.end).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),
-          segmentId: sq.dataset.segId,
+          camera: segCamId in cameraData ? cameraData[segCamId].label : '',
+          segments: segs || [],
         });
       });
     });
@@ -471,58 +476,21 @@
     const popover = document.getElementById('cellDetailPopover');
     const color = LABEL_COLORS[meta.label] || '#888';
     const name = STATUS_LABELS[meta.label] || meta.label;
-    document.getElementById('popoverTitle').textContent = meta.camera || '';
-    const classEl = document.getElementById('popoverClassification');
-    classEl.textContent = name;
-    classEl.style.background = color + '33';
-    classEl.style.color = color;
-    document.getElementById('popoverMetadata').textContent = `${meta.confidence}% · ${meta.count !== undefined ? meta.count : 1} segments · ${meta.minutes} min`;
-    document.getElementById('popoverTemporal').textContent = meta.time || '';
+    // Summary area (for ApexCharts or legacy single-segment popovers)
+    document.getElementById('popoverSummary').innerHTML = `<div class="flex items-center gap-2">
+      <span class="text-xs text-on-surface-variant">${meta.camera || ''}</span>
+      <span class="text-[10px] px-1.5 py-0.5 rounded-full" style="background:${color}33;color:${color}">${name}</span>
+      <span class="text-xs text-on-surface-variant">${meta.time || ''}</span>
+    </div>`;
 
-    const detLink = document.getElementById('popoverDetails');
-    detLink.dataset.segmentId = meta.segmentId || '';
-    const evLink = document.getElementById('popoverEvidence');
+    // List-based drilldown for daily grid cells
+    const segmentsContainer = document.getElementById('popoverSegments');
+    segmentsContainer.innerHTML = '<div class="text-xs text-on-surface-variant text-center py-4">Loading segments...</div>';
 
-    if (meta.segmentId) {
-      evLink.parentElement.innerHTML = '';
-      detLink.style.display = '';
-      try {
-        const resp = await fetch(`/api/evidence/${meta.segmentId}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          const evidenceFrames = Array.isArray(data.evidence_frames) ? data.evidence_frames.filter(Boolean) : [];
-
-          if (evidenceFrames.length > 0) {
-            const container = document.createElement('div');
-            container.className = 'grid grid-cols-3 gap-1.5 max-h-28 overflow-y-auto';
-            evidenceFrames.forEach(fp => {
-              const img = document.createElement('img');
-              img.src = '/' + fp;
-              img.alt = 'Frame';
-              img.className = 'w-full h-8 object-cover rounded-sm border border-outline-variant/20 cursor-pointer hover:opacity-80';
-              img.onclick = () => window.open('/' + fp, '_blank');
-              container.appendChild(img);
-            });
-            evLink.parentElement.appendChild(container);
-          } else if (data.evidence_path) {
-            const a = document.createElement('a');
-            a.href = '/' + data.evidence_path;
-            a.target = '_blank';
-            a.className = 'text-xs font-medium text-primary hover:underline';
-            a.textContent = 'View Evidence';
-            evLink.parentElement.appendChild(a);
-          } else {
-            evLink.parentElement.innerHTML = '<span class="text-xs text-on-surface-variant italic">No evidence</span>';
-          }
-        } else {
-          evLink.parentElement.innerHTML = '<span class="text-xs text-on-surface-variant italic">Not found</span>';
-        }
-      } catch (e) {
-        evLink.parentElement.innerHTML = '<span class="text-xs text-error italic">Error</span>';
-      }
+    if (meta.segments && meta.segments.length > 0) {
+      await enrichSegments(segmentsContainer, meta.segments);
     } else {
-      evLink.parentElement.innerHTML = '<span class="text-xs text-on-surface-variant italic">No evidence</span>';
-      detLink.style.display = 'none';
+      segmentsContainer.innerHTML = '<div class="text-xs text-on-surface-variant text-center py-4">No segments to show</div>';
     }
 
     const rect = event.target.getBoundingClientRect();
@@ -533,6 +501,81 @@
 
   function hidePopover() {
     document.getElementById('cellDetailPopover').classList.add('hidden');
+  }
+
+  // Enrich segment list with API details and render compact rows
+  async function enrichSegments(container, segments) {
+    // Enrich each segment from /api/history/segments/{id}
+    const enriched = await Promise.all(segments.map(async (seg) => {
+      const segId = seg.segment_id || seg.id || '';
+      if (!segId) return { ...seg, model_used: '', evidence: null, job_id: seg.job_id || '' };
+      try {
+        const [histResp, evResp] = await Promise.all([
+          fetch(`/api/history/segments/${segId}`).catch(() => ({ ok: false })),
+          fetch(`/api/evidence/${segId}`).catch(() => ({ ok: false })),
+        ]);
+        const hist = histResp.ok ? await histResp.json() : {};
+        const ev = evResp.ok ? await evResp.json() : null;
+        return {
+          ...seg,
+          camera_name: hist.camera_name || seg.camera || '',
+          start_ts: hist.start_ts || seg.start_ts || '',
+          end_ts: hist.end_ts || seg.end_ts || '',
+          model_used: hist.model_used || '',
+          evidence: ev,
+          job_id: hist.job_id || seg.job_id || '',
+        };
+      } catch (_) {
+        return { ...seg, model_used: '', evidence: null, job_id: seg.job_id || '' };
+      }
+    }));
+
+    renderSegmentRows(container, enriched);
+  }
+
+  function renderSegmentRows(container, segments) {
+    if (segments.length === 0) {
+      container.innerHTML = '<div class="text-xs text-on-surface-variant text-center py-4">No segments</div>';
+      return;
+    }
+
+    container.innerHTML = segments.map((seg) => {
+      const color = LABEL_COLORS[seg.label] || LABEL_COLORS.uncertain;
+      const name = STATUS_LABELS[seg.label] || seg.label;
+      const conf = Math.round((seg.confidence || 0) * 100);
+      const startStr = seg.start_ts ? new Date(seg.start_ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+      const endStr = seg.end_ts ? new Date(seg.end_ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+
+      // Thumbnail: first frame or "No image" placeholder
+      const frames = Array.isArray(seg.evidence?.evidence_frames) ? seg.evidence.evidence_frames.filter(Boolean) : [];
+      const thumbHtml = frames.length > 0
+        ? `<img src="/${frames[0]}" alt="Frame" class="w-8 h-8 rounded object-cover flex-shrink-0 border border-outline-variant/20" />`
+        : `<span class="w-8 h-8 rounded flex-shrink-0 bg-surface-container-lowest flex items-center justify-center text-[9px] text-on-surface-variant border border-outline-variant/20">No image</span>`;
+
+      const modelHtml = seg.model_used
+        ? `<span class="text-[9px] text-on-surface-variant" title="Model: ${seg.model_used}">${seg.model_used.split('/').pop() || seg.model_used}</span>`
+        : '';
+
+      const jobBtnHtml = seg.job_id
+        ? `<button type="button" class="text-[9px] text-primary hover:underline font-medium flex-shrink-0" data-job-id="${seg.job_id}">Open Job Details</button>`
+        : '';
+
+      return `<div class="flex items-center gap-1.5 p-1.5 rounded-lg bg-surface-container-lowest" data-segment-id="${seg.id || ''}">
+        ${thumbHtml}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${color}"></span>
+            <span class="text-[10px] font-medium text-on-surface truncate">${seg.camera_name || ''} · ${name}</span>
+          </div>
+          <div class="flex items-center gap-1 text-[9px] text-on-surface-variant">
+            <span>${conf}%</span>
+            <span>${startStr}-${endStr}</span>
+            ${modelHtml}
+          </div>
+        </div>
+        ${jobBtnHtml}
+      </div>`;
+    }).join('');
   }
 
   function hideSegmentModal() {

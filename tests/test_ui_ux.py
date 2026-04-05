@@ -145,3 +145,62 @@ def test_history_template_uses_evidence_frames_and_single_init_hook():
 def test_photos_js_avoids_inline_segment_json_onclick():
     source = Path("factory_analytics/static/photos.js").read_text()
     assert "JSON.stringify(p).replace" not in source
+
+
+def test_photos_cards_and_modal_show_model_name():
+    photos_js = Path("factory_analytics/static/photos.js").read_text()
+    photos_html = Path("factory_analytics/templates/photos.html").read_text()
+    assert "Model:" in photos_js
+    assert "p.model_used" in photos_js
+    assert "modalModel" in photos_html
+
+
+def test_efficiency_drilldown_markup_includes_model_and_job_detail_hooks():
+    eff_html = Path("factory_analytics/templates/efficiency.html").read_text()
+    eff_js = Path("factory_analytics/static/efficiency.js").read_text()
+    assert "popoverSegments" in eff_html
+    assert "Open Job Details" in eff_js
+    assert "model_used" in eff_js
+    assert "No image" in eff_js
+
+
+def test_daily_grid_popover_uses_per_cell_camera():
+    """Popover must show the clicked cell's camera, not the first camera."""
+    eff_js = Path("factory_analytics/static/efficiency.js").read_text()
+    # Must NOT hardcode the first camera via cameraData[camIds[0]]
+    assert "cameraData[camIds[0]]" not in eff_js
+    # Should derive camera_id from the cell's own segment data
+    assert "segs[0].camera_id" in eff_js
+
+
+def test_job_details_modal_surface_renders_model_metadata_card():
+    """Job details modal info block must render model_used in a dedicated card.
+
+    Asserts on the exact infoHtml fragment that showJobDetails() injects into
+    #modal-job-info -- something the parent commit's infoHtml did NOT contain.
+    """
+    jobs_html = Path("factory_analytics/templates/jobs.html").read_text()
+
+    # The modal model card lives inside showJobDetails()'s infoHtml template.
+    # The parent commit's infoHtml only had Camera / Status / Type / Duration.
+    # The combined label+value fragment below is unique to that modal card:
+    #   uppercase mb-1">Model</div> ... font-mono">${job.model_used
+    assert 'uppercase mb-1">Model</div>' in jobs_html, (
+        "modal info block should have Model label card"
+    )
+    assert 'font-mono">' in jobs_html and '${job.model_used' in jobs_html, (
+        "modal info block should render model_used value"
+    )
+
+
+def test_report_surfaces_show_model_name():
+    history_html = Path("factory_analytics/templates/history.html").read_text()
+    app_js = Path("factory_analytics/static/app.js").read_text()
+    dashboard_html = Path("factory_analytics/templates/dashboard.html").read_text()
+    assert "Model" in history_html
+    assert "model_used" in history_html
+    assert "model_used" in app_js
+    assert "reportView" in dashboard_html
+    # Verify dashboard report surface renders model name
+    assert "reportView" in app_js
+    assert "Model:" in app_js
