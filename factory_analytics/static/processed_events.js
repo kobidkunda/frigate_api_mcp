@@ -21,6 +21,34 @@ function fmtProcessedTs(ts){
   }catch(_){ return ts; }
 }
 
+function safeProcessedPath(path){
+  if (typeof path !== 'string') return '';
+  const trimmed = path.trim().replace(/^\/+/, '');
+  if (!trimmed || /^(?:[a-z]+:|\/\/)/i.test(trimmed)) return '';
+  const segments = trimmed.split('/').filter(Boolean);
+  if (segments.length < 3) return '';
+  if (segments[0] !== 'data' || segments[1] !== 'evidence') return '';
+  if (segments.some(part => part === '.' || part === '..')) return '';
+  return segments.join('/');
+}
+
+function getProcessedEvidenceFrames(item){
+  if (Array.isArray(item.evidence_frames) && item.evidence_frames.length) {
+    return item.evidence_frames.map(safeProcessedPath).filter(Boolean);
+  }
+  return [item.evidence_path].map(safeProcessedPath).filter(Boolean);
+}
+
+function renderProcessedEvidenceFrames(item){
+  const frames = getProcessedEvidenceFrames(item);
+  if (!frames.length) {
+    return '<span class="text-[10px] text-outline italic">No image</span>';
+  }
+  return `<div class="flex gap-1 items-center flex-wrap">${frames.map((path, index) => `
+    <img src="/${path}" alt="Evidence ${index + 1}" class="w-16 h-10 object-cover rounded border border-outline-variant/10" />
+  `).join('')}</div>`;
+}
+
 async function loadProcessedEvents(){
   const form = document.getElementById('processedFilterForm');
   const fd = new FormData(form);
@@ -86,7 +114,7 @@ async function loadProcessedEvents(){
               <td class="px-4 py-4 font-label font-bold text-tertiary">${Math.round((i.confidence||0)*100)}%</td>
               <td class="px-4 py-4 text-on-surface-variant">${fmtProcessedTs(i.start_ts)}</td>
               <td class="px-4 py-4">
-                ${i.evidence_path ? `<img src="/${i.evidence_path}" alt="evidence" class="w-16 h-10 object-cover rounded border border-outline-variant/10" />` : '<span class="text-[10px] text-outline italic">No image</span>'}
+                ${renderProcessedEvidenceFrames(i)}
               </td>
             </tr>`).join('')}
         </tbody>

@@ -572,6 +572,7 @@ class Database:
         tz_name: str = "UTC",
         group_id: int | None = None,
         job_type: str | None = None,
+        job_id: int | None = None,
     ) -> dict[str, Any]:
         conditions = []
         params: list[Any] = []
@@ -589,6 +590,9 @@ class Database:
         if job_type is not None:
             conditions.append("j.job_type = ?")
             params.append(job_type)
+        if job_id is not None:
+            conditions.append("j.id = ?")
+            params.append(job_id)
         if from_ts is not None:
             conditions.append(
                 "COALESCE(j.finished_at, j.started_at, j.scheduled_for, j.created_at) >= ?"
@@ -669,11 +673,12 @@ class Database:
     def get_segment(self, segment_id: int) -> dict[str, Any] | None:
         with self.connect() as conn:
             row = conn.execute(
-                """SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
-                          j.job_type, j.raw_result, j.payload_json
+                f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
+                          j.job_type, j.raw_result, j.payload_json,
+                          {MODEL_USED_SQL}
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
-                   JOIN jobs j ON j.id = s.job_id
+                   LEFT JOIN jobs j ON j.id = s.job_id
                    WHERE s.id=?""",
                 (segment_id,),
             ).fetchone()
@@ -684,6 +689,10 @@ class Database:
             item["raw_result"] = json.loads(raw_result) if raw_result else {}
             payload_json = item.get("payload_json")
             item["payload_json"] = json.loads(payload_json) if payload_json else {}
+            item["evidence_frames"] = item["raw_result"].get("evidence_frames", [])
+            item["primary_evidence_path"] = item["raw_result"].get(
+                "primary_evidence_path"
+            ) or item.get("evidence_path")
             item["group_name"] = item["raw_result"].get("group_name")
             item["group_type"] = item["raw_result"].get("group_type")
             item["group_id"] = item["raw_result"].get("group_id")
@@ -720,7 +729,8 @@ class Database:
         with self.connect() as conn:
             rows = conn.execute(
                 f"""SELECT s.*, c.name AS camera_name, c.frigate_name AS camera_frigate_name,
-                          j.job_type, j.raw_result, j.payload_json
+                          j.job_type, j.raw_result, j.payload_json,
+                          {MODEL_USED_SQL}
                    FROM segments s
                    JOIN cameras c ON c.id = s.camera_id
                    LEFT JOIN jobs j ON j.id = s.job_id{where} ORDER BY s.id DESC LIMIT ? OFFSET ?""",

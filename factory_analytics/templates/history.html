@@ -164,6 +164,26 @@
         return colors[label] || 'bg-outline';
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function safePath(path) {
+        if (typeof path !== 'string') return '';
+        const trimmed = path.trim().replace(/^\/+/, '');
+        if (!trimmed || /^(?:[a-z]+:|\/\/)/i.test(trimmed)) return '';
+        const segments = trimmed.split('/').filter(Boolean);
+        if (segments.length < 3) return '';
+        if (segments[0] !== 'data' || segments[1] !== 'evidence') return '';
+        if (segments.some(part => part === '.' || part === '..')) return '';
+        return segments.join('/');
+    }
+
     function renderSegments(segments) {
         const tbody = document.getElementById('results-tbody');
         if (!tbody) {
@@ -181,55 +201,67 @@
         
         const html = segments.map(s => {
             const effectiveLabel = s.reviewed_label || s.label;
+            const safeLabel = escapeHtml(effectiveLabel || '-');
             const labelColor = getLabelColor(effectiveLabel);
             const confidenceClass = (s.confidence || 0) > 0.8 ? 'text-tertiary' : 'text-secondary';
-            
+            const detailHref = `/history/${s.id}`;
+            const safeCameraName = escapeHtml(s.camera_name || 'N/A');
+            const safeModelUsed = escapeHtml(s.model_used || '-');
+            const safeNotes = escapeHtml(s.notes || 'No extended analysis available.');
+            const safeStartTs = escapeHtml(fmtTs(s.start_ts) || '-');
+            const safeEndTs = escapeHtml(fmtTs(s.end_ts) || '-');
+
             let evidenceHtml = '<div class="w-32 h-20 rounded-md bg-surface-container-highest border border-outline-variant/10 flex items-center justify-center"><span class="text-[10px] text-outline font-label uppercase">No Feed</span></div>';
-            const evidenceFrames = Array.isArray(s.evidence_frames)
-                ? s.evidence_frames.filter(Boolean)
+            const evidenceFrames = (Array.isArray(s.evidence_frames)
+                ? s.evidence_frames
                 : Array.isArray(s.raw_result?.evidence_frames)
-                    ? s.raw_result.evidence_frames.filter(Boolean)
-                    : [s.evidence_path].filter(Boolean);
+                    ? s.raw_result.evidence_frames
+                    : [s.evidence_path]
+            ).map(safePath).filter(Boolean);
             if (evidenceFrames.length === 1) {
-                evidenceHtml = `<a href="/${evidenceFrames[0]}" target="_blank" class="block w-32 h-20 rounded-md overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors"><img src="/${evidenceFrames[0]}" alt="${effectiveLabel}" class="w-full h-full object-cover" loading="lazy"></a>`;
+                const framePath = evidenceFrames[0];
+                evidenceHtml = `<a href="/${framePath}" target="_blank" rel="noopener noreferrer" class="block w-32 h-20 rounded-md overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors"><img src="/${framePath}" alt="${safeLabel}" class="w-full h-full object-cover" loading="lazy"></a>`;
             } else if (evidenceFrames.length > 1) {
                 const thumbs = evidenceFrames.map((p, i) =>
-                    `<a href="/${p}" target="_blank" class="w-10 h-10 rounded overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors flex-shrink-0"><img src="/${p}" alt="frame ${i+1}" class="w-full h-full object-cover" loading="lazy"></a>`
+                    `<a href="/${p}" target="_blank" rel="noopener noreferrer" class="w-10 h-10 rounded overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors flex-shrink-0"><img src="/${p}" alt="frame ${i+1}" class="w-full h-full object-cover" loading="lazy"></a>`
                 ).join('');
                 evidenceHtml = `<div class="flex gap-1 items-center">${thumbs}</div>`;
             }
 
             let groupHtml = '';
             if (s.job_type === 'group_analysis' && s.group_name) {
-                groupHtml = `<div class="mt-1 inline-block px-2 py-0.5 rounded text-[9px] font-label uppercase tracking-widest bg-primary-container text-primary">Group: ${s.group_name}</div>`;
+                groupHtml = `<div class="mt-1 inline-block px-2 py-0.5 rounded text-[9px] font-label uppercase tracking-widest bg-primary-container text-primary">Group: ${escapeHtml(s.group_name)}</div>`;
             }
 
             return `<tr class="hover:bg-surface-container-highest/40 transition-colors group">
                 <td class="px-6 py-6 font-label text-sm text-primary">#SEG-${s.id}</td>
                 <td class="px-6 py-6">
-                    <div class="text-sm font-medium text-on-surface">${s.camera_name || 'N/A'}</div>
+                    <div class="text-sm font-medium text-on-surface">${safeCameraName}</div>
                 </td>
                 <td class="px-6 py-6">
-                    <div class="text-xs font-label text-on-surface-variant">${s.model_used || '-'}</div>
+                    <div class="text-xs font-label text-on-surface-variant">${safeModelUsed}</div>
                 </td>
                 <td class="px-6 py-6">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="w-2 h-2 rounded-full ${labelColor}"></span>
-                        <span class="text-sm font-bold text-on-surface capitalize">${effectiveLabel}</span>
+                        <span class="text-sm font-bold text-on-surface capitalize">${safeLabel}</span>
                     </div>
                     <div class="text-xs text-on-surface-variant max-w-xs leading-relaxed line-clamp-2">
-                        ${s.notes || 'No extended analysis available.'}
+                        ${safeNotes}
                     </div>
                     ${groupHtml}
+                    <div class="mt-2">
+                        <a href="${detailHref}" class="inline-flex items-center gap-1 text-xs font-label uppercase tracking-widest text-primary hover:underline">Open Details</a>
+                    </div>
                 </td>
                 <td class="px-6 py-6 text-center">
                     <span class="text-sm font-bold ${confidenceClass}">${Math.round((s.confidence || 0) * 100)}%</span>
                 </td>
                 <td class="px-6 py-6">
                     <div class="flex flex-col gap-1">
-                        <span class="text-xs font-label text-on-surface">${fmtTs(s.start_ts)}</span>
+                        <span class="text-xs font-label text-on-surface">${safeStartTs}</span>
                         <span class="text-[10px] text-outline uppercase font-label">TO</span>
-                        <span class="text-xs font-label text-on-surface-variant">${fmtTs(s.end_ts)}</span>
+                        <span class="text-xs font-label text-on-surface-variant">${safeEndTs}</span>
                     </div>
                 </td>
                 <td class="px-6 py-6">

@@ -736,6 +736,7 @@ class AnalyticsService:
         sort_by: str = "id",
         sort_dir: str = "desc",
         job_type: str | None = None,
+        job_id: int | None = None,
     ):
         tz_name = self.settings().get("timezone") or "UTC"
         result = self.db.list_jobs_paginated(
@@ -751,6 +752,7 @@ class AnalyticsService:
             tz_name,
             group_id,
             job_type,
+            job_id,
         )
         return {
             "jobs": result.get("items", []),

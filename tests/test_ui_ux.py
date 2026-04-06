@@ -2,7 +2,11 @@ import re
 from pathlib import Path
 from fastapi.testclient import TestClient
 
-from factory_analytics.main import app
+import factory_analytics.main as main_module
+from factory_analytics.database import Database
+from factory_analytics.services import AnalyticsService
+
+app = main_module.app
 
 
 def test_dashboard_page_renders_and_has_accessible_nav():
@@ -46,15 +50,98 @@ def test_history_page_renders_inline_evidence_preview_hooks():
     assert "object-cover" in source
 
 
+def test_history_page_renders_all_evidence_thumbnail_hooks():
+    source = Path("factory_analytics/templates/history.html").read_text()
+    assert "evidenceFrames.map" in source
+    assert "frame ${i+1}" in source
+    assert "flex gap-1 items-center" in source
+
+
+def test_history_page_links_rows_to_segment_detail_route():
+    source = Path("factory_analytics/templates/history.html").read_text()
+    assert "const detailHref = `/history/${s.id}`;" in source
+    assert 'href="${detailHref}"' in source
+    assert "Open Details" in source
+
+
+def test_history_detail_page_renders_existing_segment_or_404_until_seeded(tmp_path, monkeypatch):
+    db = Database(tmp_path / "history-ui.db")
+    service = AnalyticsService(db)
+    monkeypatch.setattr(main_module, "db", db)
+    monkeypatch.setattr(main_module, "service", service)
+
+    camera = db.upsert_camera("cam_history_route", "Camera History Route")
+    job = db.schedule_job(camera["id"], payload={"model": "llava:13b"})
+    segment = db.create_segment(
+        job_id=job["id"],
+        camera_id=camera["id"],
+        start_ts="2026-04-06T11:00:00+00:00",
+        end_ts="2026-04-06T11:01:00+00:00",
+        label="working",
+        confidence=0.95,
+        notes="History route seed",
+        evidence_path="data/evidence/history-route/primary.jpg",
+    )
+    db.mark_job_finished(
+        job["id"],
+        "success",
+        raw_result={
+            "model": "llava:13b",
+            "primary_evidence_path": "data/evidence/history-route/primary.jpg",
+            "evidence_frames": [
+                "data/evidence/history-route/primary.jpg",
+                "data/evidence/history-route/frame-2.jpg",
+            ],
+            "raw": {"detail": "seeded raw detail"},
+        },
+        snapshot_path="data/evidence/history-route/primary.jpg",
+    )
+    db.review_segment(segment["id"], "working", "seed review note", "qa-user")
+
+    client = TestClient(app)
+    response = client.get(f"/history/{segment['id']}")
+    assert response.status_code == 200
+    assert "Capture Event Details" in response.text
+    assert "Camera History Route" in response.text
+    assert "llava:13b" in response.text
+    assert "History route seed" in response.text
+    assert "seed review note" in response.text
+    assert "data/evidence/history-route/primary.jpg" in response.text
+    assert "data/evidence/history-route/frame-2.jpg" in response.text
+    assert "seeded raw detail" in response.text
+
+
+def test_history_detail_page_returns_404_for_missing_segment(tmp_path, monkeypatch):
+    db = Database(tmp_path / "history-ui-404.db")
+    service = AnalyticsService(db)
+    monkeypatch.setattr(main_module, "db", db)
+    monkeypatch.setattr(main_module, "service", service)
+
+    client = TestClient(app)
+    response = client.get("/history/1")
+    assert response.status_code == 404
+
+
+def test_history_detail_template_contains_required_sections():
+    source = Path("factory_analytics/templates/history_detail.html").read_text()
+    assert "Capture Event Details" in source
+    assert "Evidence Frames" in source
+    assert "Model" in source
+    assert "Raw Result" in source
+    assert "Primary Evidence" in source
+    assert "Review" in source
+
+
 def test_history_page_renders_llm_response_hooks():
     source = Path("factory_analytics/templates/history.html").read_text()
     assert "No extended analysis available." in source
-    assert "s.notes ||" in source
+    assert "safeNotes" in source
+    assert "escapeHtml(s.notes || 'No extended analysis available.')" in source
 
 
 def test_history_page_renders_group_result_badge_hooks():
     source = Path("factory_analytics/templates/history.html").read_text()
-    assert "Group: ${s.group_name}" in source
+    assert "Group: ${escapeHtml(s.group_name)}" in source
     assert "group_name" in source
 
 
@@ -135,6 +222,19 @@ def test_jobs_ui_shows_model_column_and_value():
     assert "AS model_used" in db_source
 
 
+def test_jobs_page_reads_job_query_param_for_single_job_filter():
+    jobs_html = Path("factory_analytics/templates/jobs.html").read_text()
+    main_source = Path("factory_analytics/main.py").read_text()
+    db_source = Path("factory_analytics/database.py").read_text()
+
+    assert "new URLSearchParams(window.location.search)" in jobs_html
+    assert ".get('job')" in jobs_html or '.get("job")' in jobs_html
+    assert "job_id: requestedJobId" in jobs_html
+    assert "job_id: int | None = None" in main_source
+    assert "job_id: int | None = None" in db_source
+    assert "j.id = ?" in db_source
+
+
 def test_history_template_uses_evidence_frames_and_single_init_hook():
     source = Path("factory_analytics/templates/history.html").read_text()
     assert "evidence_frames" in source
@@ -191,6 +291,22 @@ def test_job_details_modal_surface_renders_model_metadata_card():
     assert 'font-mono">' in jobs_html and '${job.model_used' in jobs_html, (
         "modal info block should render model_used value"
     )
+
+
+def test_jobs_modal_uses_evidence_frames_gallery_hooks():
+    jobs_html = Path("factory_analytics/templates/jobs.html").read_text()
+    assert "evidence_frames" in jobs_html
+    assert "modal-snapshot-gallery" in jobs_html
+    assert "jobFrames.map" in jobs_html
+
+
+def test_jobs_modal_sanitizes_evidence_paths_and_preserves_job_filter():
+    jobs_html = Path("factory_analytics/templates/jobs.html").read_text()
+    assert "function safeJobPath" in jobs_html
+    assert "/^(?:[a-z]+:|\\/\\/)/i.test(trimmed)" in jobs_html
+    assert "segments[0] !== 'data' || segments[1] !== 'evidence'" in jobs_html
+    assert "currentFilters = requestedJobId ? { job_id: requestedJobId } : {};" in jobs_html
+    assert "if (requestedJobId) currentFilters.job_id = requestedJobId;" in jobs_html
 
 
 def test_report_surfaces_show_model_name():

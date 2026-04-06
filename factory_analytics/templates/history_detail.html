@@ -1,0 +1,124 @@
+{% extends "partials/base.html" %}
+{% block title %}Capture Event Details{% endblock %}
+{% block content %}
+{% set primary_path = segment.primary_evidence_path or segment.evidence_path %}
+<header class="mb-8">
+  <h1 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Capture Event Details</h1>
+  <p class="text-on-surface-variant font-body">Segment #{{ segment.id }}</p>
+</header>
+
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8">
+  <h2 class="text-lg font-bold mb-4">Segment Identity</h2>
+  <dl class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Segment ID</dt>
+      <dd class="text-on-surface">#SEG-{{ segment.id }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Job ID</dt>
+      <dd class="text-on-surface">{{ segment.job_id }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Job Type</dt>
+      <dd class="text-on-surface">{{ segment.job_type or '-' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Model</dt>
+      <dd class="font-mono text-on-surface">{{ segment.model_used or '-' }}</dd>
+    </div>
+  </dl>
+</section>
+
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8">
+  <h2 class="text-lg font-bold mb-4">Camera &amp; Group</h2>
+  <dl class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Camera</dt>
+      <dd class="text-on-surface">{{ segment.camera_name or '-' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Frigate Camera</dt>
+      <dd class="text-on-surface">{{ segment.camera_frigate_name or '-' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Group</dt>
+      <dd class="text-on-surface">{{ segment.group_name or '-' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Group Type</dt>
+      <dd class="text-on-surface">{{ segment.group_type or '-' }}</dd>
+    </div>
+  </dl>
+</section>
+
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8">
+  <h2 class="text-lg font-bold mb-4">Classification &amp; Timing</h2>
+  <dl class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Label</dt>
+      <dd class="text-on-surface">{{ segment.label or '-' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Reviewed Label</dt>
+      <dd class="text-on-surface">{{ segment.reviewed_label or '-' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Confidence</dt>
+      <dd class="text-on-surface">{{ segment.confidence if segment.confidence is not none else '-' }}</dd>
+    </div>
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Start / End</dt>
+      <dd class="text-on-surface">{{ segment.start_ts or '-' }}<br>{{ segment.end_ts or '-' }}</dd>
+    </div>
+  </dl>
+  <div class="mt-4">
+    <div class="text-xs uppercase tracking-widest text-outline mb-1">Notes</div>
+    <div class="text-sm text-on-surface">{{ segment.notes or '-' }}</div>
+  </div>
+</section>
+
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8">
+  <h2 class="text-lg font-bold mb-4">Review</h2>
+  <dl class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+    <div>
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Reviewed By</dt>
+      <dd class="text-on-surface">{{ segment.review_by or '-' }}</dd>
+    </div>
+    <div class="md:col-span-2">
+      <dt class="text-xs uppercase tracking-widest text-outline mb-1">Review Note</dt>
+      <dd class="text-on-surface">{{ segment.review_note or '-' }}</dd>
+    </div>
+  </dl>
+</section>
+
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8">
+  <h2 class="text-lg font-bold mb-4">Primary Evidence</h2>
+  {% if primary_path %}
+    <a href="/{{ primary_path }}" target="_blank" rel="noopener noreferrer" class="block rounded-lg overflow-hidden border border-outline-variant/10">
+      <img src="/{{ primary_path }}" alt="Primary evidence" class="w-full max-h-[28rem] object-contain bg-surface-container-highest">
+    </a>
+  {% else %}
+    <div class="text-sm text-outline">-</div>
+  {% endif %}
+</section>
+
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10 mb-8">
+  <h2 class="text-lg font-bold mb-4">Evidence Frames</h2>
+  {% if segment.evidence_frames %}
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+      {% for frame in segment.evidence_frames %}
+        <a href="/{{ frame }}" target="_blank" rel="noopener noreferrer" class="block rounded-lg overflow-hidden border border-outline-variant/10">
+          <img src="/{{ frame }}" alt="Evidence frame {{ loop.index }}" class="w-full h-40 object-cover">
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="text-sm text-outline">-</div>
+  {% endif %}
+</section>
+
+<section class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+  <h2 class="text-lg font-bold mb-4">Raw Result</h2>
+  <pre class="text-xs overflow-x-auto text-on-surface">{{ segment.raw_result | tojson(indent=2) }}</pre>
+</section>
+{% endblock %}

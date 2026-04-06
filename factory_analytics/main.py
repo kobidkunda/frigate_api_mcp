@@ -100,7 +100,7 @@ def shutdown_event():
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "dashboard.html", {"request": request})
 
 
 @app.get("/favicon.ico")
@@ -113,57 +113,69 @@ def favicon():
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "dashboard.html", {"request": request})
 
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request):
-    return templates.TemplateResponse("settings.html", {"request": request})
+    return templates.TemplateResponse(request, "settings.html", {"request": request})
 
 
 @app.get("/history", response_class=HTMLResponse)
 def history_page(request: Request):
-    return templates.TemplateResponse("history.html", {"request": request})
+    return templates.TemplateResponse(request, "history.html", {"request": request})
+
+
+@app.get("/history/{segment_id}", response_class=HTMLResponse)
+def history_detail_page(request: Request, segment_id: int):
+    segment = service.segment(segment_id)
+    if not segment:
+        raise HTTPException(status_code=404, detail="Segment not found")
+    return templates.TemplateResponse(
+        request,
+        "history_detail.html",
+        {"request": request, "segment": segment},
+    )
 
 
 @app.get("/groups", response_class=HTMLResponse)
 def groups_page(request: Request):
-    return templates.TemplateResponse("groups.html", {"request": request})
+    return templates.TemplateResponse(request, "groups.html", {"request": request})
 
 
 @app.get("/logs", response_class=HTMLResponse)
 def logs_page(request: Request):
-    return templates.TemplateResponse("logs.html", {"request": request})
+    return templates.TemplateResponse(request, "logs.html", {"request": request})
 
 
 @app.get("/control-center", response_class=HTMLResponse)
 def control_center_page(request: Request):
-    return templates.TemplateResponse("control_center.html", {"request": request})
+    return templates.TemplateResponse(request, "control_center.html", {"request": request})
 
 
 @app.get("/api-explorer", response_class=HTMLResponse)
 def api_explorer_page(request: Request):
-    return templates.TemplateResponse("api_explorer.html", {"request": request})
+    return templates.TemplateResponse(request, "api_explorer.html", {"request": request})
 
 
 @app.get("/processed-events", response_class=HTMLResponse)
 def processed_events_page(request: Request):
-    return templates.TemplateResponse("processed_events.html", {"request": request})
+    return templates.TemplateResponse(request, "processed_events.html", {"request": request})
 
 
 @app.get("/charts", response_class=HTMLResponse)
 def charts_page(request: Request):
-    return templates.TemplateResponse("charts.html", {"request": request})
+    return templates.TemplateResponse(request, "charts.html", {"request": request})
 
 
 @app.get("/efficiency", response_class=HTMLResponse)
 def efficiency_page(request: Request):
-    return templates.TemplateResponse("efficiency.html", {"request": request})
+    return templates.TemplateResponse(request, "efficiency.html", {"request": request})
 
 
 @app.get("/photos", response_class=HTMLResponse)
 def photos_page(request: Request):
-    return templates.TemplateResponse("photos.html", {"request": request})
+    return templates.TemplateResponse(request, "photos.html", {"request": request})
 
 
 @app.get("/api/health")
@@ -401,6 +413,7 @@ def list_jobs(
     status: str | None = None,
     camera_id: int | None = None,
     job_type: str | None = None,
+    job_id: int | None = None,
     page: int = 1,
     page_size: int = 25,
 ):
@@ -410,6 +423,7 @@ def list_jobs(
         status=status,
         camera_id=camera_id,
         job_type=job_type,
+        job_id=job_id,
     )
 
 
@@ -501,7 +515,7 @@ def reset_scheduler():
 
 @app.get("/jobs", response_class=HTMLResponse)
 def jobs_page(request: Request):
-    return templates.TemplateResponse("jobs.html", {"request": request})
+    return templates.TemplateResponse(request, "jobs.html", {"request": request})
 
 
 @app.get("/api/history/segments")
