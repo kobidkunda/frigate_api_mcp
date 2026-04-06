@@ -236,7 +236,7 @@ class OpenAIClient:
         image_paths: list[Path],
         prompt: str | None = None,
         *,
-        seconds_apart: int = 1,
+        seconds_apart: float = 1,
     ) -> dict[str, Any]:
         if not image_paths:
             raise RuntimeError("No images provided for classification")
@@ -250,7 +250,7 @@ class OpenAIClient:
         return result
 
     def classify_group_images(
-        self, image_paths: list[Path], *, seconds_apart: int = 1, camera_count: int = 1
+        self, image_paths: list[Path], *, seconds_apart: float = 1, camera_count: int = 1
     ) -> dict[str, Any]:
         if not image_paths:
             raise RuntimeError("No images provided for group classification")

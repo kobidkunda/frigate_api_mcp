@@ -361,7 +361,7 @@ class AnalyticsService:
             )
             frame_paths = frame_result["frame_paths"]
             images_to_send = frame_paths or [frame_result["strip_path"]]
-            seconds_apart = img_settings.get("seconds_window", 1)
+            seconds_apart = float(img_settings.get("frame_interval_seconds", 1.0))
             result = self.ollama_client().classify_images(
                 images_to_send, seconds_apart=seconds_apart
             )
@@ -501,7 +501,7 @@ class AnalyticsService:
                 collage_path = build_group_collage(frame_cameras, collage_path)
             per_frame_collages.append(collage_path)
 
-        seconds_apart = img_settings.get("seconds_window", 1)
+        seconds_apart = float(img_settings.get("frame_interval_seconds", 1.0))
         result = self.ollama_client().classify_group_images(
             per_frame_collages,
             seconds_apart=seconds_apart,
@@ -630,11 +630,12 @@ class AnalyticsService:
             "720p": 720,
             "original": 0,
         }
-        frames_count = max(1, int(settings.get("llm_frames_per_process", 1)))
+        frames_per_second = max(1, int(settings.get("llm_frames_per_process", 1)))
         seconds_window = max(1, int(settings.get("llm_seconds_window", 3)))
         return {
-            "frames": frames_count,
+            "frames": frames_per_second * seconds_window,
             "seconds_window": seconds_window,
+            "frame_interval_seconds": 1 / frames_per_second,
             "resolution": resolution_map.get(
                 settings.get("image_resize_resolution", "original"), 0
             ),
@@ -653,6 +654,7 @@ class AnalyticsService:
         frigate = self.frigate_client()
         camera_name = camera["frigate_name"]
         count = img_settings["frames"]
+        frame_interval = float(img_settings.get("frame_interval_seconds", 1.0))
 
         if count <= 1:
             single = self._capture_snapshot(camera_name)
@@ -661,7 +663,7 @@ class AnalyticsService:
                 "frame_paths": [single],
             }
 
-        frames = fetch_frames(frigate, camera_name, count)
+        frames = fetch_frames(frigate, camera_name, count, interval_sec=frame_interval)
 
         max_dim = img_settings["resolution"]
         if max_dim > 0:

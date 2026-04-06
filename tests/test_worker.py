@@ -147,6 +147,199 @@ def test_classify_images_replaces_seconds_placeholder_for_single_frame(monkeypat
     assert "3" in captured["prompt"]
 
 
+def test_classify_images_replaces_seconds_placeholder_for_fractional_interval(monkeypatch):
+    from factory_analytics.integrations.ollama import OpenAIClient
+
+    client = OpenAIClient({"llm_url": "http://127.0.0.1:11434"})
+    captured = {}
+
+    def fake_send(prompt, image_paths):
+        captured["prompt"] = prompt
+        return '{"label":"working","confidence":0.9,"notes":"operator visible"}', {"choices": []}
+
+    monkeypatch.setattr(client, "_send_request", fake_send)
+
+    result = client.classify_images([Path("frame_0.jpg"), Path("frame_1.jpg")], seconds_apart=0.5)
+
+    assert result["label"] == "working"
+    assert "{seconds}" not in captured["prompt"]
+    assert "0.5" in captured["prompt"]
+
+
+def test_image_settings_expand_capture_count_by_window(tmp_path: Path):
+    from factory_analytics.services import AnalyticsService
+
+    db = Database(path=tmp_path / "image_settings.db")
+    service = AnalyticsService(db)
+    db.update_settings({"llm_frames_per_process": 1, "llm_seconds_window": 3})
+
+    settings = service._get_image_settings()
+
+    assert settings["frames"] == 3
+    assert settings["seconds_window"] == 3
+    assert settings["frame_interval_seconds"] == 1.0
+
+
+def test_image_settings_compute_interval_for_multi_fps(tmp_path: Path):
+    from factory_analytics.services import AnalyticsService
+
+    db = Database(path=tmp_path / "image_settings_rate.db")
+    service = AnalyticsService(db)
+    db.update_settings({"llm_frames_per_process": 2, "llm_seconds_window": 3})
+
+    settings = service._get_image_settings()
+
+    assert settings["frames"] == 6
+    assert settings["seconds_window"] == 3
+    assert settings["frame_interval_seconds"] == 0.5
+
+
+def test_process_single_job_passes_real_capture_interval_and_prompt_timing(tmp_path: Path, monkeypatch):
+    from pathlib import Path as SysPath
+
+    from factory_analytics.services import AnalyticsService
+
+    db = Database(path=tmp_path / "single_job_interval.db")
+    service = AnalyticsService(db)
+    db.update_settings({"llm_frames_per_process": 2, "llm_seconds_window": 3})
+
+    camera = db.upsert_camera("cam_interval", "Interval Cam")
+    job = db.schedule_job(camera["id"], payload={"source": "test"})
+
+    captured = {}
+
+    class FakeFrame:
+        def save(self, target, fmt, quality=100):
+            SysPath(target).parent.mkdir(parents=True, exist_ok=True)
+            SysPath(target).write_bytes(b"frame")
+
+    def fake_fetch_frames(frigate, camera_name, count, interval_sec=1):
+        captured["camera_name"] = camera_name
+        captured["count"] = count
+        captured["interval_sec"] = interval_sec
+        return [FakeFrame() for _ in range(count)]
+
+    def fake_resize(image, max_dim):
+        return image
+
+    class FakeSavedFrame:
+        def __init__(self, path):
+            self.path = path
+        def convert(self, mode):
+            return self
+        def save(self, target, fmt, quality=100):
+            SysPath(target).parent.mkdir(parents=True, exist_ok=True)
+            SysPath(target).write_bytes(b"frame")
+
+    def fake_build_vertical_strip(frames, camera_name, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"strip")
+        return output_path
+
+    class FakeOllama:
+        def classify_images(self, image_paths, prompt=None, *, seconds_apart=1):
+            captured["seconds_apart"] = seconds_apart
+            captured["image_count"] = len(image_paths)
+            return {"label": "working", "confidence": 0.9, "notes": "ok"}
+
+    monkeypatch.setattr("factory_analytics.services.fetch_frames", fake_fetch_frames)
+    monkeypatch.setattr("factory_analytics.services.resize_pil_image", fake_resize)
+    monkeypatch.setattr("factory_analytics.services.build_vertical_strip", fake_build_vertical_strip)
+    monkeypatch.setattr(service, "frigate_client", lambda: object())
+    monkeypatch.setattr(service, "ollama_client", lambda: FakeOllama())
+    monkeypatch.setattr("factory_analytics.services.Image", type("FakeImageModule", (), {
+        "open": staticmethod(lambda path: FakeSavedFrame(path))
+    }))
+
+    result = service._process_single_job(job)
+
+    assert result["job"]["status"] == "success"
+    assert captured["camera_name"] == "cam_interval"
+    assert captured["count"] == 6
+    assert captured["interval_sec"] == 0.5
+    assert captured["seconds_apart"] == 0.5
+    assert captured["image_count"] == 6
+
+
+def test_execute_group_analysis_passes_real_capture_interval_and_prompt_timing(tmp_path: Path, monkeypatch):
+    from pathlib import Path as SysPath
+
+    from factory_analytics.services import AnalyticsService
+
+    db = Database(path=tmp_path / "group_job_interval.db")
+    service = AnalyticsService(db)
+    db.update_settings({"llm_frames_per_process": 2, "llm_seconds_window": 3})
+
+    group = db.create_group("line", "Line A", interval_seconds=60)
+    camera1 = db.upsert_camera("cam_group_1", "Group Cam 1")
+    camera2 = db.upsert_camera("cam_group_2", "Group Cam 2")
+    db.update_camera(camera1["id"], {"enabled": True})
+    db.update_camera(camera2["id"], {"enabled": True})
+    db.add_camera_to_group(camera1["id"], group["id"])
+    db.add_camera_to_group(camera2["id"], group["id"])
+    job = db.schedule_job(camera1["id"], payload={"group_id": group["id"]}, job_type="group_analysis")
+
+    captured = {"fetch_calls": []}
+
+    class FakeFrame:
+        def save(self, target, fmt, quality=100):
+            SysPath(target).parent.mkdir(parents=True, exist_ok=True)
+            SysPath(target).write_bytes(b"frame")
+
+    def fake_fetch_frames(frigate, camera_name, count, interval_sec=1):
+        captured["fetch_calls"].append((camera_name, count, interval_sec))
+        return [FakeFrame() for _ in range(count)]
+
+    def fake_resize(image, max_dim):
+        return image
+
+    class FakeSavedFrame:
+        def __init__(self, path):
+            self.path = path
+        def convert(self, mode):
+            return self
+        def save(self, target, fmt, quality=100):
+            SysPath(target).parent.mkdir(parents=True, exist_ok=True)
+            SysPath(target).write_bytes(b"frame")
+
+    def fake_build_vertical_strip(frames, camera_name, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"strip")
+        return output_path
+
+    def fake_build_group_collage(frame_cameras, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"collage")
+        return output_path
+
+    class FakeOllama:
+        def classify_group_images(self, image_paths, *, seconds_apart=1, camera_count=1):
+            captured["seconds_apart"] = seconds_apart
+            captured["image_count"] = len(image_paths)
+            captured["camera_count"] = camera_count
+            return {"label": "working", "confidence": 0.95, "notes": "group ok"}
+
+    monkeypatch.setattr("factory_analytics.services.fetch_frames", fake_fetch_frames)
+    monkeypatch.setattr("factory_analytics.services.resize_pil_image", fake_resize)
+    monkeypatch.setattr("factory_analytics.services.build_vertical_strip", fake_build_vertical_strip)
+    monkeypatch.setattr("factory_analytics.services.build_group_collage", fake_build_group_collage)
+    monkeypatch.setattr(service, "frigate_client", lambda: object())
+    monkeypatch.setattr(service, "ollama_client", lambda: FakeOllama())
+    monkeypatch.setattr("factory_analytics.services.Image", type("FakeImageModule", (), {
+        "open": staticmethod(lambda path: FakeSavedFrame(path))
+    }))
+
+    result = service._execute_group_analysis(job, group["id"])
+
+    assert result["ok"] is True
+    assert len(captured["fetch_calls"]) == 2
+    assert captured["fetch_calls"][0] == ("cam_group_1", 6, 0.5)
+    assert captured["fetch_calls"][1] == ("cam_group_2", 6, 0.5)
+    assert captured["seconds_apart"] == 0.5
+    assert captured["image_count"] == 6
+    assert captured["camera_count"] == 2
+
+
 def test_update_daily_rollup_maps_new_label_set(tmp_path: Path):
     db = Database(path=tmp_path / "rollups.db")
     camera = db.upsert_camera("rollup_cam", "Rollup Cam")
